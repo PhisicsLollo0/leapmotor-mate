@@ -15,6 +15,7 @@ and to the ready-automation gate, where "only pre-heat below 5 °C" was satisfie
 all year**. → [[signal-absent-is-not-signal-zero]]
 """
 import pathlib
+import re
 
 import client          # poller/client.py
 import pytest
@@ -243,14 +244,15 @@ def test_a_real_zero_is_printed_on_the_page_too():
 
 @pytest.mark.parametrize("absent,wide", [((), False),
                                          (("inside_temp",), True),
-                                         (("inside_temp", "ac_target"), False),
-                                         (("inside_temp", "ac_target", "battery_temp"), True)])
-def test_the_odometer_takes_the_whole_width_when_the_grid_would_be_left_open(absent, wide):
-    """These are half-width cells: an odd number of them leaves a hole in the last row, and the
-    odometer alone in a 130px column wraps its value onto a second line. Silvio saw exactly that on
-    the T03 screenshot. Odd total ⟺ an even number of temperatures survive."""
-    row = _render_card(absent=absent).split("odometer", 1)[0].rsplit("<div", 1)[1]
-    assert ("col-span-2" in row) is wide
+                                         (("inside_temp", "ac_target"), True),
+                                         (("inside_temp", "ac_target", "battery_temp"), False)])
+def test_the_last_tile_closes_the_grid_when_it_would_be_left_open(absent, wide):
+    """Fork ("Notturno" Overview): the tiles sit three to a row — the temperatures still present,
+    the odometer and the charge tile. A count that is not a multiple of three leaves a hole in the
+    last row (Silvio saw that on the T03 screenshot, on the old two columns), so the last tile, the
+    charge one, stretches over it."""
+    tile = re.findall(r'<div class="nx-tile(?:\s[^"]*)?"', _render_card(absent=absent))[-1]
+    assert ("col-span" in tile) is wide
 
 
 def test_the_flag_is_a_template_global_not_a_context_key():

@@ -74,7 +74,7 @@ def test_ios_gets_its_own_icon_because_it_ignores_the_manifest():
 def test_the_head_links_it_all_and_stays_relative():
     html = BASE_HTML.read_text(encoding="utf-8")
     for needle in ('<link rel="manifest" href="static/manifest.webmanifest">',
-                   '<meta name="theme-color" content="#0f172a">',
+                   '<meta name="theme-color" content="#05080D">',
                    '<meta name="apple-mobile-web-app-capable" content="yes">',
                    '<meta name="mobile-web-app-capable" content="yes">',
                    '<meta name="apple-mobile-web-app-title" content="Mate">'):
@@ -87,5 +87,5 @@ def test_the_theme_colour_matches_the_app_it_frames():
     # with a coloured band above a dark page.
     m = _manifest()
     html = BASE_HTML.read_text(encoding="utf-8")
-    assert m["theme_color"] == m["background_color"] == "#0f172a"
+    assert m["theme_color"] == m["background_color"] == "#05080D"
     assert f'content="{m["theme_color"]}"' in html

@@ -58,7 +58,7 @@
      root. It remains a shortcut to a server you run: with that server off, the icon opens
      nothing. #}
   <link rel="manifest" href="static/manifest.webmanifest">
-  <meta name="theme-color" content="#0f172a">
+  <meta name="theme-color" content="#05080D">
   <link rel="apple-touch-icon" href="static/mate-icon-180.png">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -68,50 +68,78 @@
   <script src="static/vendor/htmx.min.js"></script>
   <script src="static/vendor/apexcharts.min.js"></script>
   <script src="static/band-chart.js"></script>
+  <link rel="stylesheet" href="static/vendor/fonts/fonts.css">
   <script>
+    {# "Notturno" theme (fork): every page draws with Tailwind's slate scale, so remapping that one
+       scale here re-colours the whole app without touching the templates — a night instrument
+       cluster: near-black blue, panels a step up, borders barely there. `ev` and `fuel` are the two
+       energies; brand follows the electric one. Saira is a typeface drawn for displays; its condensed
+       cut (`font-gauge`) is for the big numbers. #}
     tailwind.config = {
       theme: {
         extend: {
-          colors: { brand: '#14b8a6' }
+          colors: {
+            brand: '#4FD8FF',
+            ev: '#4FD8FF',
+            fuel: '#FFB13D',
+            slate: {
+              50: '#F3F8FF', 100: '#EAF0F7', 200: '#DCE6F2', 300: '#AEBCCD', 400: '#8496AD',
+              500: '#5E7189', 600: '#2A3A4F', 700: '#17212E', 800: '#0B1119', 900: '#05080D', 950: '#020407'
+            }
+          },
+          fontFamily: {
+            sans: ['Saira', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            gauge: ['"Saira Condensed"', 'Saira', 'ui-sans-serif', 'sans-serif']
+          }
         }
       }
     }
   </script>
   <style>
+    :root {
+      --nx-bg: #05080D; --nx-panel: #0B1119; --nx-panel-2: #080C12; --nx-edge: #17212E;
+      --nx-ink: #DCE6F2; --nx-hi: #F3F8FF; --nx-mute: #5E7189; --nx-soft: #9FB0C5;
+      --nx-ev: #4FD8FF; --nx-fuel: #FFB13D; --nx-ok: #57E3A0;
+    }
+    body { font-family: Saira, ui-sans-serif, system-ui, sans-serif; background: var(--nx-bg); }
+    .font-gauge { font-family: "Saira Condensed", Saira, ui-sans-serif, sans-serif; }
     .soc-bar { transition: width 0.6s ease; }
 
     .nav-link {
       display: flex;
       align-items: center;
       gap: 0.75rem;
-      padding: 0.625rem 1rem;
-      border-radius: 0.5rem;
+      padding: 0.55rem 0.85rem;
+      border-radius: 0.6rem;
       font-size: 0.875rem;
       font-weight: 500;
-      color: rgb(148 163 184);
+      color: var(--nx-mute);
       text-decoration: none;
-      transition: background 0.15s, color 0.15s;
+      border: 1px solid transparent;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
     }
-    .nav-link:hover { color: white; background: rgb(51 65 85); }
-    .nav-link.active { color: white; background: rgb(51 65 85); }
+    .nav-link:hover { color: var(--nx-ink); background: rgba(23,33,46,.6); }
+    .nav-link.active { color: var(--nx-hi); background: linear-gradient(180deg,#0E1722,#0A1018); border-color: var(--nx-edge); }
+    .nav-link.active svg { color: var(--nx-ev); filter: drop-shadow(0 0 6px rgba(79,216,255,.45)); }
 
     .card {
-      background: rgb(30 41 59);
-      border-radius: 0.75rem;
+      background: linear-gradient(180deg, var(--nx-panel), var(--nx-panel-2));
+      border-radius: 0.875rem;
       padding: 1.25rem;
-      border: 1px solid rgb(51 65 85);
+      border: 1px solid var(--nx-edge);
     }
     .stat-label {
-      font-size: 0.75rem;
-      color: rgb(148 163 184);
+      font-size: 0.6875rem;
+      color: var(--nx-mute);
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.1em;
       margin-bottom: 0.25rem;
     }
     .stat-value {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: white;
+      font-family: "Saira Condensed", Saira, ui-sans-serif, sans-serif;
+      font-size: 1.75rem;
+      font-weight: 500;
+      color: var(--nx-hi);
     }
     /* A fixed 3-up row of counters leaves each tile about 100px on a phone, and the label inside
        is one uppercase word that cannot wrap. Dutch BINNENKORT measures 83px there, so it touches
@@ -122,7 +150,7 @@
     @media (max-width: 480px) {
       .stat-tiles .stat-label { font-size: 0.7rem; letter-spacing: 0; }
     }
-    .bg-slate-750 { background: rgb(36 49 65); }
+    .bg-slate-750 { background: #0E1520; }
 
     /* ── Trips tree ─────────────────────────────────────────────── */
     .tree-summary {
@@ -283,6 +311,7 @@
     .cal-day[data-anchor] { outline: 2px dashed #14b8a6; outline-offset: 2px; }
   </style>
 </head>
+{% import "partials/_nav_icons.html" as nav %}
 <body class="h-full bg-slate-900 text-slate-100 flex flex-col md:flex-row" data-autorefresh="{% block autorefresh %}30{% endblock %}">
 
   <!-- Mobile Header -->
@@ -398,63 +427,63 @@
     <!-- Nav -->
     <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
       <a href="."           class="nav-link {% if page=='overview'    %}active{% endif %}">
-        <span class="text-lg">⚡</span> {{ t('nav_overview') }}
+        {{ nav.icon('overview') }} {{ t('nav_overview') }}
       </a>
       <a href="trips"       class="nav-link {% if page=='trips'       %}active{% endif %}">
-        <span class="text-lg">🗺</span> {{ t('nav_trips') }}
+        {{ nav.icon('trips') }} {{ t('nav_trips') }}
       </a>
       <a href="map"         class="nav-link {% if page=='map'         %}active{% endif %}">
-        <span class="text-lg">🌍</span> {{ t('nav_map') }}
+        {{ nav.icon('map') }} {{ t('nav_map') }}
       </a>
       <a href="charges"     class="nav-link {% if page=='charges'     %}active{% endif %}">
-        <span class="text-lg">🔌</span> {{ t('nav_charges') }}
+        {{ nav.icon('charges') }} {{ t('nav_charges') }}
       </a>
       {% if is_reev %}
       <a href="reev"        class="nav-link {% if page=='reev'        %}active{% endif %}">
-        <span class="text-lg">⛽</span> {{ t('nav_reev') }}
+        {{ nav.icon('reev') }} {{ t('nav_reev') }}
       </a>
       <a href="fuel"        class="nav-link {% if page=='fuel'        %}active{% endif %}">
-        <span class="text-lg">🛢️</span> {{ t('nav_fuel') }}
+        {{ nav.icon('fuel') }} {{ t('nav_fuel') }}
       </a>
       {% endif %}
       <a href="costs"       class="nav-link {% if page=='costs'       %}active{% endif %}">
-        <span class="text-lg">💰</span> {{ t('nav_costs') }}
+        {{ nav.icon('costs') }} {{ t('nav_costs') }}
       </a>
       <a href="statistics"  class="nav-link {% if page=='statistics'  %}active{% endif %}">
-        <span class="text-lg">📊</span> {{ t('nav_statistics') }}
+        {{ nav.icon('statistics') }} {{ t('nav_statistics') }}
       </a>
       <a href="events"      class="nav-link {% if page=='events'      %}active{% endif %}">
-        <span class="text-lg">🕒</span> {{ t('nav_events') }}
+        {{ nav.icon('events') }} {{ t('nav_events') }}
       </a>
       <a href="report"      class="nav-link {% if page=='report'      %}active{% endif %}">
-        <span class="text-lg">📆</span> {{ t('nav_report') }}
+        {{ nav.icon('report') }} {{ t('nav_report') }}
       </a>
       <a href="battery"     class="nav-link {% if page=='battery'     %}active{% endif %}">
-        <span class="text-lg">🩺</span> {{ t('nav_battery') }}
+        {{ nav.icon('battery') }} {{ t('nav_battery') }}
       </a>
       <a href="maintenance" class="nav-link {% if page=='maintenance' %}active{% endif %}">
-        <span class="text-lg">🧰</span> {{ t('nav_maintenance') }}
+        {{ nav.icon('maintenance') }} {{ t('nav_maintenance') }}
       </a>
       <a href="commands"    class="nav-link {% if page=='commands'    %}active{% endif %}">
-        <span class="text-lg">🎮</span> {{ t('nav_commands') }}
+        {{ nav.icon('commands') }} {{ t('nav_commands') }}
       </a>
       <a href="scheduling"  class="nav-link {% if page=='scheduling'  %}active{% endif %}">
-        <span class="text-lg">📅</span> {{ t('nav_scheduling') }}
+        {{ nav.icon('scheduling') }} {{ t('nav_scheduling') }}
       </a>
       {% if prepare_car_shown %}
       <a href="prepare-car" class="nav-link {% if page=='prepare_car' %}active{% endif %}">
-        <span class="text-lg">🔧</span> {{ t('nav_prepare_car') }}
+        {{ nav.icon('prepare_car') }} {{ t('nav_prepare_car') }}
       </a>
       {% endif %}
       <a href="navigation"  class="nav-link {% if page=='navigation'  %}active{% endif %}">
-        <span class="text-lg">🧭</span> {{ t('nav_navigation') }}
+        {{ nav.icon('navigation') }} {{ t('nav_navigation') }}
       </a>
       <a href="vehicle"     class="nav-link {% if page=='vehicle'     %}active{% endif %}">
-        <span class="text-lg">🚗</span> {{ t('nav_vehicle') }}
+        {{ nav.icon('vehicle') }} {{ t('nav_vehicle') }}
       </a>
       {% if wallbox_enabled %}
       <a href="wallbox"     class="nav-link {% if page=='wallbox'     %}active{% endif %}">
-        <span class="text-lg">🔋</span>
+        {{ nav.icon('wallbox') }}
         <span class="flex-1 min-w-0">
           {{ t('nav_wallbox') }}
           {% if wb_active_profile_name %}
@@ -468,11 +497,11 @@
     <!-- Settings at bottom -->
     <div class="px-3 py-4 border-t border-slate-700">
       <a href="settings" class="nav-link {% if page=='settings' %}active{% endif %}">
-        <span class="text-lg">⚙️</span> {{ t('nav_settings') }}
+        {{ nav.icon('settings') }} {{ t('nav_settings') }}
       </a>
       {% if auth_enabled %}
       <a href="logout" class="nav-link">
-        <span class="text-lg">🚪</span> {{ t('logout') }}
+        {{ nav.icon('logout') }} {{ t('logout') }}
       </a>
       {% endif %}
     </div>

@@ -2,35 +2,82 @@
 {% block autorefresh %}0{% endblock %}{# own HTMX status poll (every 30s) #}
 {% block title %}{{ t('nav_overview') }} — LeapMotor Mate{% endblock %}
 
+{% import "partials/_nav_icons.html" as nav %}
 {% block content %}
 <style>
-  #hero-card .hero-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;padding:4px 9px;border-radius:999px;line-height:1}
-  /* The charging chip packs a lot (kW · SoC · time · target %). Keep it on ONE line at every
-     width; in the narrow 3-column (lg) layout the hero card is only ~190px wide, so shrink the
-     font a touch there to stop it wrapping and splitting "al 90%" across two lines over the car. */
+  /* "Notturno" Overview (fork): the dial, its two legs and the strip on the left; the car, its status
+     rows and the tiles on the right; last charge, map and trips underneath. */
+  .nx-top{display:grid;gap:14px;grid-template-columns:1fr}
+  .nx-bottom{display:grid;gap:14px;grid-template-columns:1fr;margin-top:14px}
+  @media (min-width:1024px){ .nx-top{grid-template-columns:1.2fr 1fr} .nx-bottom{grid-template-columns:1fr 1fr 1.1fr} }
+  .nx-right{display:grid;gap:14px;align-content:start}
+  #status-card{position:relative;padding:20px 22px 18px;display:flex;flex-direction:column;justify-content:center}
+  .nx-gauge{position:relative}
+  .nx-dial{width:100%;max-width:400px;display:block;margin:0 auto}
+  .nx-track,.nx-fill{fill:none;stroke-width:16;stroke-dasharray:3 5}
+  .nx-track{stroke:var(--nx-edge)}
+  .nx-fill{filter:drop-shadow(0 0 6px currentColor)}
+  .nx-mid{position:absolute;left:0;right:0;top:27%;text-align:center}
+  .nx-mid b{display:block;font-weight:300;font-size:clamp(64px,14vw,96px);line-height:1;color:var(--nx-hi);text-shadow:0 0 24px rgba(120,200,255,.22)}
+  .nx-mid .stat-label{margin-top:4px}
+  .nx-legs{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px}
+  .nx-leg-val{font-size:30px;font-weight:500;line-height:1.1;text-shadow:0 0 12px currentColor}
+  .nx-leg-val span{font-size:18px;margin-left:1px}
+  .nx-leg-sub{font-size:12.5px;color:var(--nx-mute);line-height:1.6;margin-top:2px}
+  .nx-leg-sub b{color:var(--nx-soft);font-weight:500}
+  .nx-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+  .nx-strip>div{background:#070B11;border:1px solid var(--nx-edge);border-radius:10px;padding:8px 10px;text-align:center;min-width:0}
+  .nx-strip .font-gauge{font-size:22px;font-weight:500;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .nx-strip small{font-size:13px;color:var(--nx-mute)}
+  .nx-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .nx-tile{background:linear-gradient(180deg,var(--nx-panel),var(--nx-panel-2));border:1px solid var(--nx-edge);border-radius:12px;padding:10px 12px;min-width:0}
+  .nx-tile .stat-label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .nx-tile-val{font-size:26px;color:var(--nx-hi);line-height:1.15}
+  .nx-tile-val small{font-size:14px;color:var(--nx-mute);margin-left:2px}
+  .nx-tile-txt{font-size:13px;color:var(--nx-mute);line-height:1.3;padding-top:5px}
+  .nx-rows{display:grid;grid-template-columns:1fr;gap:6px 22px;font-size:13px;margin-top:10px;border-top:1px solid var(--nx-edge);padding-top:10px}
+  @media (min-width:480px){ .nx-rows{grid-template-columns:1fr 1fr} }
+  .nx-rows>div{display:flex;justify-content:space-between;gap:10px;color:var(--nx-mute);min-width:0}
+  .nx-dot{display:inline-block;width:8px;height:8px;border-radius:50%;box-shadow:0 0 6px currentColor}
+  #hero-card{padding:14px 16px 12px}
+  #hero-card .nx-car{filter:drop-shadow(0 18px 18px rgba(0,0,0,.85)) brightness(.93)}
+  #hero-card .hero-chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;padding:4px 10px;border-radius:999px;line-height:1;background:rgba(8,12,18,.7)!important}
+  /* The charging chip packs a lot (kW · SoC · time · target %): one line at every width. */
   #hero-card .hero-chip--charge{white-space:nowrap;max-width:100%}
   #hero-card .hero-chip--cable{flex-wrap:wrap;justify-content:center;row-gap:3px}
   @media (max-width:480px){ #hero-card .hero-chip--cable{font-size:11px} }
-  @media (min-width:1024px){ #hero-card .hero-chip--charge{font-size:11px;padding-left:7px;padding-right:7px} }
-  #hero-card .hero-stream{position:relative;width:64px;height:8px;border-radius:999px;background:rgba(20,184,166,.15);overflow:hidden}
-  #hero-card .hero-stream span{position:absolute;top:2px;width:4px;height:4px;border-radius:50%;background:#5eead4;animation:heroFlow 1.2s linear infinite}
+  #hero-card .hero-stream{position:relative;width:64px;height:8px;border-radius:999px;background:rgba(79,216,255,.12);overflow:hidden}
+  #hero-card .hero-stream span{position:absolute;top:2px;width:4px;height:4px;border-radius:50%;background:var(--nx-ev);box-shadow:0 0 6px var(--nx-ev);animation:heroFlow 1.2s linear infinite}
   #hero-card .hero-stream span:nth-child(2){animation-delay:.3s}
   #hero-card .hero-stream span:nth-child(3){animation-delay:.6s}
   #hero-card .hero-stream span:nth-child(4){animation-delay:.9s}
   @keyframes heroFlow{0%{left:-6px;opacity:0}15%{opacity:1}85%{opacity:1}100%{left:64px;opacity:0}}
-  /* JS-driven persistent ⏳ on a movement command's button: shown from the press until the car actually
-     confirms the new state (the button toggles to its opposite) or a 30s timeout. Overrides the
-     htmx-indicator rule (which only covers the brief HTTP request) and keeps it centered. */
-  #hero-card .spin-on{display:flex!important;opacity:1!important}
-  /* While a command is in progress the buttons are inert — the click never reaches htmx, so no confirm
-     popup fires and the hidden cooldown can't be tripped. Dimmed so it reads as "wait". The ⏳ overlay is
-     a sibling (not a <button>), so it stays fully visible. */
-  #hero-cmds.cmds-busy button{pointer-events:none;opacity:.45}
+  @media (prefers-reduced-motion:reduce){ #hero-card .hero-stream span{animation:none;left:30px} }
+  .nx-h{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px}
+  .nx-h h2{font-weight:500;font-size:15px;color:var(--nx-hi)}
+  .nx-h a{font-size:12px;color:var(--nx-ev)}
+  .nx-h a:hover{text-decoration:underline}
+  .nx-kv{display:grid;gap:7px;font-size:13px}
+  .nx-kv>div{display:flex;justify-content:space-between;gap:12px;color:var(--nx-mute)}
+  .nx-kv>div>span:last-child{color:var(--nx-ink);text-align:right;min-width:0}
+  .nx-energy{font-size:32px;font-weight:500;color:var(--nx-fuel);line-height:1.1}
+  .nx-trip{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:9px 4px;border-top:1px solid var(--nx-edge);font-size:13px;border-radius:8px}
+  .nx-trip:first-child{border-top:0}
+  .nx-trip:hover{background:rgba(23,33,46,.45)}
+  .nx-trip-ic{width:32px;height:32px;border-radius:9px;border:1px solid var(--nx-edge);display:grid;place-items:center;color:var(--nx-ev)}
+  #map-card{padding:0;overflow:hidden;position:relative;min-height:260px}
+  #map-card .stat-label{position:absolute;left:12px;bottom:10px;z-index:500;background:rgba(5,8,13,.78);padding:3px 8px;border-radius:6px;margin:0}
+  #map-card #map-box,#map-card #map{height:100%;min-height:260px;border-radius:0}
+  #map-card .leaflet-container{background:#0A1018}
+  #map-card .leaflet-bar a{background:#0B1119;color:var(--nx-soft);border-color:var(--nx-edge)}
+  #map-card .leaflet-tile-pane{filter:invert(1) hue-rotate(185deg) brightness(.62) contrast(1.25) saturate(.35)}
+  #map-card .leaflet-control-attribution{font-size:10px;background:rgba(5,8,13,.7);color:var(--nx-mute)}
+  #map-card .leaflet-control-attribution a{color:var(--nx-soft)}
 </style>
-<div class="mb-6 flex flex-wrap items-start justify-between gap-3">
+<div class="mb-5 flex flex-wrap items-start justify-between gap-3">
   <div>
-    <h1 class="text-2xl font-bold text-white">{{ t('overview_title') }}</h1>
-    <p class="text-slate-400 text-sm mt-1">{{ vehicle.car_type if vehicle else 'LeapMotor' }} {{ t('live_status') }}</p>
+    <h1 class="text-2xl font-semibold text-white tracking-wide">{{ t('overview_title') }}</h1>
+    <p class="text-slate-500 text-sm mt-0.5">{{ vehicle.car_type if vehicle else 'LeapMotor' }} {{ t('live_status') }}</p>
   </div>
   {# Whether the data on this page can be trusted — beside the heading, where a glance lands
      first, on its own refresh so it stays current between the cards' own reloads. #}
@@ -41,90 +88,67 @@
   {% endif %}
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+<div class="nx-top">
 
-  <!-- Status card (auto-refresh every 30s via HTMX) -->
-  <div class="card md:col-span-1"
-       id="status-card"
-       hx-get="api/status-card"
-       hx-trigger="load, every 30s"
-       hx-swap="innerHTML">
-    {% include "partials/status_card.html" %}
+  <!-- The dial: range, battery (+ tank), state. Every 30 s the card refetches itself, and the same
+       response carries the tiles and the status rows as out-of-band swaps. -->
+  <div class="card" id="status-card" hx-get="api/status-card" hx-trigger="load, every 30s" hx-swap="innerHTML">
+    {% with part = 'gauge' %}{% include "partials/status_card.html" %}{% endwith %}
   </div>
 
-  <!-- Vehicle hero: image + live status overlaid + quick commands (+ charging animation).
-       Auto-refreshes every 30s so the chips and toggle states stay current. Replaces the old
-       plain picture card; content lives in partials/overview_hero.html. -->
-  <div class="card md:col-span-1 lg:col-span-1 flex flex-col min-h-64" id="hero-card">
-    {# Only #hero-body is swapped on refresh. The command-feedback line + readiness indicator below it
-       live OUTSIDE the swap, so a refresh never re-renders them — that flash of the server's default
-       green "ready" is exactly what used to flicker, and the swap is what detached the ⏳. They stay
-       visually inside the card, right under the buttons. #}
-    <div id="hero-body" class="flex-1 flex flex-col"
-         hx-get="api/overview-hero" hx-trigger="every 30s" hx-swap="innerHTML">
-      {% include "partials/overview_hero.html" %}
+  <div class="nx-right">
+    <!-- The car: chips over it, the charge under it, then the status rows. Only #hero-body is swapped
+         on its own refresh; the rows belong to the status card's response. -->
+    <div class="card flex flex-col" id="hero-card">
+      <div id="hero-body" class="flex-1 flex flex-col"
+           hx-get="api/overview-hero" hx-trigger="every 30s" hx-swap="innerHTML">
+        {% include "partials/overview_hero.html" %}
+      </div>
+      <div id="status-rows">{% if status %}{% with part = 'rows' %}{% include "partials/status_card.html" %}{% endwith %}{% endif %}</div>
     </div>
-    <div id="hero-cmd-result" class="text-center text-[11px] mt-2 min-h-[14px]"></div>
-    <div id="cmd-ready" class="text-center text-[10px] mt-0.5 text-emerald-400">{{ t('cmd_ready') }}</div>
+    <div id="status-tiles">{% if status %}{% with part = 'tiles' %}{% include "partials/status_card.html" %}{% endwith %}{% endif %}</div>
   </div>
+</div>
+
+<div class="nx-bottom">
 
   <!-- Last charge -->
-  <div class="card md:col-span-1">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="font-semibold text-white">{{ t('last_charge') }}</h2>
-      <a href="charges" class="text-brand text-sm hover:underline">{{ t('all_charges') }}</a>
+  <div class="card">
+    <div class="nx-h">
+      <h2>{{ t('last_charge') }}</h2>
+      <a href="charges">{{ t('all_charges') }}</a>
     </div>
     {% if last_charge %}
-    <div class="space-y-3">
-      {# The same figure the charge card leads with, and the same second line under it — decided
-         in db_reader.charge_energy_view for both. It used to say the battery figure alone, beside
-         a cost computed on the wallbox counter: a €/kWh that exists on no other screen. #}
-      {% set e = charge_energy(last_charge) %}
-      <div>
-        <div class="flex justify-between items-center">
-          <span class="stat-label">{{ t('energy') }}</span>
-          <span class="text-xl font-bold text-yellow-400">+{{ e.headline_kwh|dec(1) }} kWh
-            {% if e.headline == 'wallbox' %}<span class="text-[10px] font-normal text-blue-400" title="{{ t('wallbox_billed_help') }}">🔌 {{ t('wallbox_billed') }}</span>
-            {% elif e.headline == 'delivered' %}<span class="text-[10px] font-normal text-blue-400" title="{{ t('cal_kwh_delivered_help') }}">🔌 {{ t('cal_kwh_delivered') }}</span>
-            {% else %}<span class="text-[10px] font-normal text-slate-400" title="{{ t('energy_in_battery_help') }}">🔋 {{ t('energy_in_battery') }} (DC)</span>{% endif %}
-          </span>
-        </div>
-        {% if e.headline != 'battery' %}
-        <div class="text-right text-[10px] text-slate-400" title="{{ t('wallbox_billed_help') if e.headline == 'wallbox' else t('energy_in_battery_help') }}">
-          🔋 {{ e.battery_kwh|dec(1) }} kWh {{ t('energy_in_battery') }} (DC){% if e.wallbox_eff is not none %} · {{ t('efficiency') }} {{ e.wallbox_eff|dec(0) }}%{% endif %}
-        </div>
-        {% elif e.gross_kwh %}
-        <div class="text-right text-[10px] text-slate-400" title="{{ t('gross_kwh_help') }}">
-          🔌 {{ e.gross_kwh|dec(2) }} kWh {{ t('gross_kwh_short') }}{% if e.gross_eff is not none %} · {{ t('efficiency') }} {{ e.gross_eff|dec(0) }}% ({{ t('gross_kwh_lost') }} {{ e.gross_lost_kwh|dec(1) }} kWh){% endif %}
-        </div>
-        {% endif %}
-      </div>
-      <div class="flex justify-between text-sm">
-        <span class="text-slate-400">{{ t('soc') }}</span>
-        <span class="text-white">{{ (last_charge.start_soc or 0)|dec(0) }}% → {{ (last_charge.end_soc or 0)|dec(0) }}%</span>
-      </div>
-      <div class="flex justify-between text-sm">
-        <span class="text-slate-400">{{ t('duration') }}</span>
-        <span class="text-white">{{ fmt_dur(last_charge.duration_min) }}</span>
-      </div>
-      <div class="flex justify-between text-sm">
-        <span class="text-slate-400">{{ t('type') }}</span>
-        <span class="text-white {% if last_charge.charge_type == 'DC' %}text-yellow-400{% endif %}">
-          {{ last_charge.charge_type or 'AC' }}
-          {% if last_charge.max_power_kw %} · {{ last_charge.max_power_kw|dec(1) }} kW{% endif %}
-        </span>
-      </div>
+    {# The same figure the charge card leads with, and the same second line under it — decided
+       in db_reader.charge_energy_view for both. It used to say the battery figure alone, beside
+       a cost computed on the wallbox counter: a €/kWh that exists on no other screen. #}
+    {% set e = charge_energy(last_charge) %}
+    <div class="stat-label">{{ t('energy') }}</div>
+    <div class="flex items-baseline gap-2 flex-wrap">
+      <span class="nx-energy font-gauge">+{{ e.headline_kwh|dec(1) }} kWh</span>
+      {% if e.headline == 'wallbox' %}<span class="text-xs text-ev" title="{{ t('wallbox_billed_help') }}">🔌 {{ t('wallbox_billed') }}</span>
+      {% elif e.headline == 'delivered' %}<span class="text-xs text-ev" title="{{ t('cal_kwh_delivered_help') }}">🔌 {{ t('cal_kwh_delivered') }}</span>
+      {% else %}<span class="text-xs text-slate-400" title="{{ t('energy_in_battery_help') }}">🔋 {{ t('energy_in_battery') }} (DC)</span>{% endif %}
+    </div>
+    {% if e.headline != 'battery' %}
+    <div class="text-xs text-slate-500 mb-3" title="{{ t('wallbox_billed_help') if e.headline == 'wallbox' else t('energy_in_battery_help') }}">
+      🔋 {{ e.battery_kwh|dec(1) }} kWh {{ t('energy_in_battery') }} (DC){% if e.wallbox_eff is not none %} · {{ t('efficiency') }} {{ e.wallbox_eff|dec(0) }}%{% endif %}
+    </div>
+    {% elif e.gross_kwh %}
+    <div class="text-xs text-slate-500 mb-3" title="{{ t('gross_kwh_help') }}">
+      🔌 {{ e.gross_kwh|dec(2) }} kWh {{ t('gross_kwh_short') }}{% if e.gross_eff is not none %} · {{ t('efficiency') }} {{ e.gross_eff|dec(0) }}% ({{ t('gross_kwh_lost') }} {{ e.gross_lost_kwh|dec(1) }} kWh){% endif %}
+    </div>
+    {% else %}<div class="mb-3"></div>
+    {% endif %}
+    <div class="nx-kv">
+      <div><span>{{ t('soc') }}</span><span>{{ (last_charge.start_soc or 0)|dec(0) }}% → {{ (last_charge.end_soc or 0)|dec(0) }}%</span></div>
+      <div><span>{{ t('duration') }}</span><span>{{ fmt_dur(last_charge.duration_min) }}</span></div>
+      <div><span>{{ t('type') }}</span><span{% if last_charge.charge_type == 'DC' %} class="text-fuel"{% endif %}>{{ last_charge.charge_type or 'AC' }}{% if last_charge.max_power_kw %} · {{ last_charge.max_power_kw|dec(1) }} kW{% endif %}</span></div>
       {% if last_charge.cost %}
-      <div class="flex justify-between text-sm">
-        <span class="text-slate-400">{{ t('cost') }}</span>
-        <span class="text-white">{{ last_charge.cost | money }}</span>
-      </div>
+      <div><span>{{ t('cost') }}</span><span>{{ last_charge.cost | money }}</span></div>
       {% endif %}
       {% if last_charge.location_name %}
-      <div class="flex justify-between text-sm gap-3">
-        <span class="text-slate-400">📍</span>
-        <span class="text-white truncate text-right">{{ last_charge.location_name }}</span>
-      </div>
+      <div><span>📍</span><span class="truncate">{{ last_charge.location_name }}</span></div>
       {% endif %}
     </div>
     {% else %}
@@ -135,7 +159,7 @@
        instantaneous-power sample is missed) to track the power during a session. We don't assume
        which models lack it; the data decides. Read-only (needs P + device). #}
     {% if v2l %}
-    <div class="mt-4 pt-4 border-t border-slate-700/60 space-y-2.5"
+    <div class="mt-4 pt-3 border-t border-slate-700 space-y-2 text-sm"
          hx-get="api/v2l-card" hx-trigger="load, every 10s" hx-swap="innerHTML">
       {% include "partials/v2l_card.html" %}
     </div>
@@ -143,17 +167,17 @@
   </div>
 
   <!-- Map (last known position) -->
-  <div class="card md:col-span-1 lg:col-span-1 min-h-64">
+  <div class="card" id="map-card">
     <link rel="stylesheet" href="static/vendor/leaflet/leaflet.css"/>
     <script src="static/vendor/leaflet/leaflet.js"></script>
     <div id="map-box"{% if last_position.lat is none %} style="display:none"{% endif %}>
       {# The heading, not a popup on the map, says how old the position is: a popup covered the
          map above the car and was cut off near an edge. The car's name is at the top of the page. #}
-      <div class="stat-label mb-3">{{ t('last_position') }} <span id="map-when" class="normal-case whitespace-nowrap">{% if last_position.ago %}({{ last_position.ago }}){% endif %}</span></div>
-      <div id="map" class="w-full rounded-lg" style="height:280px"></div>
+      <div class="stat-label">{{ t('last_position') }} <span id="map-when" class="normal-case whitespace-nowrap">{% if last_position.ago %}({{ last_position.ago }}){% endif %}</span></div>
+      <div id="map" class="w-full"></div>
     </div>
     <div id="map-empty"{% if last_position.lat is not none %} style="display:none"{% endif %}>
-      <div class="flex items-center justify-center h-64 text-slate-500">
+      <div class="flex items-center justify-center h-64 text-slate-500 p-5">
         <div class="text-center">
           <div class="text-4xl mb-2">🗺</div>
           <div>{{ t('last_position') }}</div>
@@ -211,8 +235,8 @@
               referrerPolicy: 'origin'
             }).addTo(map);
             const icon = L.divIcon({
-              html: '<div style="background:#14b8a6;width:14px;height:14px;border-radius:50%;border:3px solid white;box-shadow:0 0 6px rgba(0,0,0,0.5)"></div>',
-              iconSize: [14,14], iconAnchor: [7,7]
+              html: '<div style="background:#4FD8FF;width:14px;height:14px;border-radius:50%;box-shadow:0 0 0 6px rgba(79,216,255,.2),0 0 16px #4FD8FF"></div>',
+              className: '', iconSize: [14,14], iconAnchor: [7,7]
             });
             // Nothing to open on it any more: not a button, not a tab stop.
             marker = L.marker(at, {icon, interactive: false, keyboard: false}).addTo(map);
@@ -264,31 +288,24 @@
   </div>
 
   <!-- Recent trips -->
-  <div class="card md:col-span-2 lg:col-span-2">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="font-semibold text-white">{{ t('recent_trips') }}</h2>
-      <a href="trips" class="text-brand text-sm hover:underline">{{ t('view_all') }}</a>
+  <div class="card">
+    <div class="nx-h">
+      <h2>{{ t('recent_trips') }}</h2>
+      <a href="trips">{{ t('view_all') }}</a>
     </div>
     {% if recent_trips %}
-    <div class="space-y-3">
+    <div>
       {% for trip in recent_trips %}
-      <a href="trips/{{ trip.id }}" class="flex items-center justify-between p-3 bg-slate-750 rounded-lg hover:bg-slate-700 transition-colors block">
-        <div class="flex items-center gap-3">
-          <div class="w-9 h-9 rounded-full bg-brand/20 flex items-center justify-center text-brand">🗺</div>
-          <div>
-            <div class="text-sm font-medium text-white">
-              {{ trip.started_at | localdate if trip.started_at else '—' }}
-              <span class="text-slate-400 font-normal ml-1">{{ trip.started_at[11:16] if trip.started_at else '' }}</span>
-            </div>
-            <div class="text-xs text-slate-400">{{ fmt_dur(trip.duration_min) }}</div>
-          </div>
-        </div>
-        <div class="text-right">
-          <div class="text-sm font-bold text-white">{{ (trip.distance_km or 0) | dist(1) }}</div>
-          <div class="text-xs text-slate-400">
-            {% if trip.efficiency_kwh_100km %}{{ trip.efficiency_kwh_100km | eff }}{% endif %}
-          </div>
-        </div>
+      <a href="trips/{{ trip.id }}" class="nx-trip">
+        <span class="nx-trip-ic">{{ nav.icon('trips', 'w-4 h-4') }}</span>
+        <span class="min-w-0">
+          <span class="block text-slate-200">{{ trip.started_at | localdate if trip.started_at else '—' }} <span class="text-slate-500">{{ trip.started_at[11:16] if trip.started_at else '' }}</span></span>
+          <span class="block text-xs text-slate-500">{{ fmt_dur(trip.duration_min) }}</span>
+        </span>
+        <span class="text-right">
+          <span class="block font-gauge text-xl text-white leading-tight">{{ (trip.distance_km or 0) | dist(1) }}</span>
+          <span class="block text-xs text-slate-500">{% if trip.efficiency_kwh_100km %}{{ trip.efficiency_kwh_100km | eff }}{% endif %}</span>
+        </span>
       </a>
       {% endfor %}
     </div>
@@ -300,109 +317,6 @@
 </div>
 
 <script>
-// Quick-command feedback on the hero card. We show ONLY the real state (no optimistic fake), so after a
-// command we re-poll the car — the backend boosts the poll — and refetch the hero as the real state lands
-// over the next few seconds. Never a "done" before the car actually reports it.
-
-// Command-readiness lives in these globals (NOT in the swappable card), so a refresh never loses it. The
-// indicator (#cmd-ready) is BINARY — no seconds countdown (Silvio: "evitiamo delay inutili"): RED "command
-// in progress (not yet completed)" while busy, GREEN "ready for a new command" once truly done.
-var sending = false, sendingSince = 0;
-var READY_MSG = {{ t('cmd_ready')|tojson }}, SENDING_MSG = {{ t('cmd_sending')|tojson }};
-
-// A command stays "busy" until BOTH:
-//   • the hidden 10 s floor has elapsed — it matches the backend's anti-spam cooldown, so the instant the
-//     pill turns green the NEXT command is GUARANTEED to be accepted (no green "ready" then a "Non inviato —
-//     riprova tra Ns" rejection — exactly the contradiction this fixes); AND
-//   • for a movement command, the car has REALLY confirmed the new state (its button toggled to the
-//     opposite). lock/unlock don't toggle → no confirm signal → the 10 s floor alone covers them.
-// While busy: the red message + the ⏳ on the pressed slot stay up, AND every command press is blocked
-// (preventDefault) so the user can never trip the cooldown — the wait is fully hidden. `slot` groups
-// open/close of one control under a stable key so the ⏳ survives the button toggling to its opposite.
-var CONFIRM = {open_trunk: 'close_trunk', close_trunk: 'open_trunk',
-               open_windows: 'close_windows', close_windows: 'open_windows'};
-var BUSY_MS = 10000;
-var busyUntil = 0, busyStart = 0, busySlot = null, pendingExpect = null;
-
-function slotOf(cmd) { return /trunk/.test(cmd) ? 'trunk' : /window/.test(cmd) ? 'windows' : cmd; }
-function isBusy()    { return Date.now() < busyUntil || pendingExpect != null; }
-function showSpin(slot, on) {                       // light/clear the ⏳ on a slot's CURRENT button
-  var el = slot && document.querySelector('#hero-body [data-slot="' + slot + '"] .hero-spin');
-  if (el) el.classList.toggle('spin-on', !!on);
-}
-
-function refreshHero() {
-  if (!document.getElementById('hero-body')) return;
-  // Never swap the body while the command's HTTP request is in flight: that detaches the pressed button,
-  // killing its htmx:afterRequest (a detached element can't bubble to the document listener). The
-  // post-command refresh batch re-runs once `sending` is false. (#cmd-ready lives outside #hero-body.)
-  if (sending) return;
-  htmx.ajax('GET', 'api/overview-hero', {target: '#hero-body', swap: 'innerHTML'});
-}
-
-function tick() {                                   // single owner of the pill + the ⏳ (every 300 ms + on swap)
-  if (sending && sendingSince && (Date.now() - sendingSince) > 60000) sending = false;   // watchdog
-  // Movement command confirmed: its opposite button is now in the DOM → the real signal flipped. (Safety:
-  // give up after 30 s if the car never confirms, so the ⏳ can't spin forever.)
-  if (pendingExpect && document.querySelector('#hero-body [hx-post="api/command/' + pendingExpect + '"]')) pendingExpect = null;
-  if (pendingExpect && (Date.now() - busyStart) > 30000) pendingExpect = null;
-  var busy = sending || isBusy();
-  showSpin(busySlot, busy);
-  var grid = document.getElementById('hero-cmds');   // make every command button inert while busy
-  if (grid) grid.classList.toggle('cmds-busy', busy);
-  if (!busy) busySlot = null;
-  var el = document.getElementById('cmd-ready');
-  if (el) {
-    el.textContent = busy ? SENDING_MSG : READY_MSG;
-    el.className = 'text-center text-[10px] mt-0.5 ' + (busy ? 'text-rose-400' : 'text-emerald-400');
-  }
-}
-setInterval(tick, 300);
-
-function keepNotice() {   // leave an error / driving-blocked notice up to be read, then clear it
-  setTimeout(function () { var n = document.getElementById('hero-cmd-result');
-                           if (n && n.querySelector('[data-warn]')) n.innerHTML = ''; }, 5000);
-}
-
-// Press a command → light the ⏳ on its slot + go red. While ALREADY busy (or a request is in flight),
-// BLOCK the press (preventDefault): the next command isn't available yet, so we never even send it — the
-// 10 s wait is hidden and the user can't trip the cooldown. (indexOf, so it also matches an ingress prefix.)
-document.addEventListener('htmx:beforeRequest', function(e) {
-  var path = (e.detail.pathInfo || {}).requestPath || '';
-  if (path.indexOf('api/command/') !== -1) {
-    if (sending || isBusy()) { e.preventDefault(); return; }   // a command is already in progress — block
-    sending = true; sendingSince = Date.now();
-    busySlot = slotOf((path.split('api/command/')[1] || '').replace(/\/$/, ''));
-    showSpin(busySlot, true);
-    tick(); return;
-  }
-  // Hold off the body's 30 s auto-refresh while a command is in flight (don't detach the in-flight button).
-  if (sending && path.indexOf('api/overview-hero') !== -1) e.preventDefault();
-});
-
-document.addEventListener('htmx:afterRequest', function(e) {
-  var path = (e.detail.pathInfo || {}).requestPath || '';
-  if (path.indexOf('api/command/') === -1) return;
-  sending = false;                                   // the HTTP request finished (cloud accepted / refused)
-  var name = (path.split('api/command/')[1] || '').replace(/\/$/, '');
-  var res = document.getElementById('hero-cmd-result');
-  var accepted = res && res.querySelector('[data-accepted]');
-  if (e.detail.successful && res && (accepted || !res.querySelector('[data-warn]'))) {
-    if (!accepted) res.innerHTML = '';                // retain the unconfirmed acceptance notice
-    // Start the hidden 10 s floor + (movement only) the real-confirm wait. The ⏳ + red stay until both end.
-    busySlot = slotOf(name); busyUntil = Date.now() + BUSY_MS; busyStart = Date.now();
-    pendingExpect = CONFIRM[name] || null;
-    // Re-poll the car (the backend boosts it) and refetch the body as the real state lands.
-    [1500, 4000, 8000, 14000, 22000, 31000].forEach(function (ms) { setTimeout(refreshHero, ms); });
-  } else if (res && res.querySelector('[data-warn]')) {
-    // Driving-blocked / car-timeout (a cooldown rejection can't reach here — those are blocked client-side):
-    // not in progress → drop the ⏳ and keep the notice up to be read.
-    showSpin(busySlot, false); busySlot = null;
-    keepNotice();
-  }
-  tick();
-});
-
 // The charging animation replaces the still car picture once loaded; an empty card while it is composed reads as broken.
 // Asked for once the still one has come or failed: with no package on disk, that first request alone downloads it.
 function showLivePicture() {
@@ -420,10 +334,8 @@ function showLivePicture() {
   if (img.complete) swap(); else img.decode().then(swap, swap);
 }
 showLivePicture();
-
-// Re-apply the ⏳ + pill right after the body refetches (the swap recreated the buttons).
 document.addEventListener('htmx:afterSwap', function(e) {
-  if (e.detail.target && e.detail.target.id === 'hero-body') { tick(); showLivePicture(); }
+  if (e.detail.target && e.detail.target.id === 'hero-body') showLivePicture();
 });
 </script>
 {% endblock %}

@@ -5,225 +5,214 @@
 {# #266 — dual range estimates: at the car's charge limit AND at 100%. `show_both` is false when the
    car charges to 100 (or hasn't reported a limit), so the two lines never repeat the same number. #}
 {% set ests = range_estimates(status.range_km, soc) %}
+{# "Notturno" Overview (fork). One card, two places on the page: the gauge renders where the card is
+   included, the tiles and the status rows go to #status-tiles and #status-rows. `part` (gauge, tiles,
+   rows) picks one when overview.html includes the card for its first paint; the 30 s refresh (and every test that
+   renders this card standalone) gets `both`, with the two other blocks as htmx out-of-band swaps —
+   so it is still ONE request and every figure still lives in this one template. #}
+{% set part = part | default('both') %}
+{% set reev = is_reev and status.get('fuel_level_pct') is not none %}
+{% set ev_pct = [[soc, 0] | max, 100] | min %}
+{% set ev_color = color if soc < 20 else 'var(--nx-ev)' %}
 
-<!-- SOC + Range -->
-<div class="mb-2">
-  <div class="grid grid-cols-2 items-start gap-4">
-    <div class="text-left">
-      <div class="stat-label">{{ t('battery') }}</div>
-      <div class="text-5xl font-bold leading-none" style="color:{{ color }}">{{ soc|dec(1) }}<span class="text-2xl text-slate-400">%</span></div>
-    </div>
-    <div class="text-right flex flex-col">
-      <div class="stat-label">{{ t('range') }}</div>
-      <div class="stat-value text-4xl leading-none mt-1">{{ dist_val(status.range_km)|int }} <span class="text-base font-normal text-slate-400">{{ dist_unit() }}</span></div>
-      {% if ests and not ests.show_both %}
-        <!-- Single 100% estimate: show as before in the right column -->
-        <div class="text-[11px] text-slate-400 leading-none mt-1">
-          <span class="text-slate-400">{{ t('range_est_100') }}:</span> <span class="font-semibold text-teal-300">{{ dist_val(ests.full_est.km)|int }}</span> {{ dist_unit() }}
-        </div>
+{% if part in ('both', 'gauge') %}
+<div class="nx-gauge">
+  {# The dial: on a range-extender the battery fills the left half and the tank the right, each
+     from the bottom up; on a battery-only car the battery takes the whole arc. Ticks are a dash
+     pattern, the fill is the same ticks seen through a mask cut to the level (pathLength=100). #}
+  <svg viewBox="0 0 360 205" class="nx-dial" aria-hidden="true">
+    <defs>
+      {% if reev %}
+      <mask id="nx-m-ev"><path d="M30 190 A150 150 0 0 1 174.8 40.1" pathLength="100" fill="none" stroke="#fff" stroke-width="22" stroke-dasharray="{{ ev_pct }} 100"/></mask>
+      <mask id="nx-m-fuel"><path d="M330 190 A150 150 0 0 0 185.2 40.1" pathLength="100" fill="none" stroke="#fff" stroke-width="22" stroke-dasharray="{{ [[status.fuel_level_pct, 0] | max, 100] | min }} 100"/></mask>
+      {% else %}
+      <mask id="nx-m-ev"><path d="M30 190 A150 150 0 0 1 330 190" pathLength="100" fill="none" stroke="#fff" stroke-width="22" stroke-dasharray="{{ ev_pct }} 100"/></mask>
       {% endif %}
-    </div>
-  </div>
-</div>
+    </defs>
+    {% if reev %}
+    <path d="M30 190 A150 150 0 0 1 174.8 40.1" class="nx-track"/>
+    <path d="M330 190 A150 150 0 0 0 185.2 40.1" class="nx-track"/>
+    <path d="M30 190 A150 150 0 0 1 174.8 40.1" class="nx-fill" style="stroke:{{ ev_color }}" mask="url(#nx-m-ev)"/>
+    <path d="M330 190 A150 150 0 0 0 185.2 40.1" class="nx-fill" style="stroke:var(--nx-fuel)" mask="url(#nx-m-fuel)"/>
+    {% else %}
+    <path d="M30 190 A150 150 0 0 1 330 190" class="nx-track"/>
+    <path d="M30 190 A150 150 0 0 1 330 190" class="nx-fill" style="stroke:{{ ev_color }}" mask="url(#nx-m-ev)"/>
+    {% endif %}
+  </svg>
 
-<!-- Range estimates above SOC bar: dual layout when limit < 100% -->
-{% if ests and ests.show_both %}
-  <!-- Left: estimate at limit%, Right: estimate at 100% -->
-  <div class="grid grid-cols-2 gap-4 mb-2">
-    <div class="text-left text-[11px] text-slate-400 leading-none">
-      {{ t('range_est_at').replace('{pct}', ests.limit_est.pct|int|string) }}: <span class="font-semibold text-teal-300">{{ dist_val(ests.limit_est.km)|int }}</span> {{ dist_unit() }}
-    </div>
-    <div class="text-right text-[11px] text-slate-400 leading-none">
-      {{ t('range_est_100') }}: <span class="font-semibold text-teal-300">{{ dist_val(ests.full_est.km)|int }}</span> {{ dist_unit() }}
-    </div>
-  </div>
-{% endif %}
-
-<!-- SOC bar -->
-<div class="w-full bg-slate-700 rounded-full h-3 {% if battery_price is not none %}mb-1{% else %}mb-5{% endif %}">
-  <div class="soc-bar h-3 rounded-full" style="width:{{ soc }}%; background:{{ color }}"></div>
-</div>
-
-{# #200 — what the energy in the pack cost on average, i.e. the rate the next trip is costed at.
-   Full width UNDER the bar rather than tucked under the % : the label is long in every language
-   (“Prezzo medio in batteria”, “Średnia cena w akumulatorze”) and the left column is 130px, so up
-   there it wrapped onto two cramped `leading-none` lines. It is deliberately NOT shortened to just
-   “Avg price” — the Charges page already uses that for a different figure, the period average, and
-   two different numbers must not share a label. Absent (not “—”) until the first priced charge:
-   there is genuinely no rate yet, and a dash under a battery reads as “free”.
-
-   `is not none`, not truthiness: that last line is exactly why 0.000 must be PRINTED. For an owner
-   whose charges are all free the pack really is free, and hiding the line leaves him to infer it
-   from an empty space — the reading the comment above calls wrong when it is not true. #}
-{% if battery_price is not none %}
-<div class="mb-5 text-[11px] leading-tight text-right" title="{{ t('blended_price_help') }}">
-  <span class="text-slate-400">{{ t('blended_price') }}:</span>
-  <span class="font-semibold text-teal-300">{{ battery_price | price3 }}</span>
-  <span class="text-slate-400">{{ currency.symbol }}/kWh</span>
-</div>
-{% endif %}
-
-{% if is_reev and status.get('fuel_level_pct') is not none %}
-{# REEV dual-energy — the fuel tank shown alongside the battery (range-extender models). Beta-gated
-   AND only when the car actually reports fuel, so a BEV never sees an empty block. range_km above
-   stays the EV-only range (signal 3260); the combined figure is the REEV's real total reach. #}
-<div class="flex items-end justify-between mb-2 pt-4 border-t border-slate-700/60">
-  <div>
-    <div class="stat-label">⛽ {{ t('reev_fuel_level') }}</div>
-    <div class="text-4xl font-bold text-amber-400">{{ status.fuel_level_pct | nice }}<span class="text-2xl text-slate-400">%</span></div>
-    {# The litres the car counts itself (signal 3263), which get_latest_status has carried all along
-       — `SELECT *` on positions — and no template ever printed. Worth more than the percentage
-       above it: the % is a float gauge, and turning it into litres would need the tank capacity,
-       which Mate assumes per model (C10 47.5 L, B10 50 L). This one is measured. Asked for by
-       @rop12770 (#202). #}
-    {% if status.get('fuel_liters') %}
-    <div class="text-[11px] text-amber-300/80 mt-0.5">{{ status.fuel_liters | nice }} L</div>
+  <div class="nx-mid">
+    {% if reev and status.get('combined_range_km') %}
+    {# Combined range = battery + fuel: the total distance a range-extender can cover, its headline number #}
+    <b class="font-gauge">{{ dist_val(status.combined_range_km)|int }}</b>
+    <span class="stat-label">{{ dist_unit() }} · 🔋+⛽ {{ t('reev_combined_range') }}</span>
+    {% else %}
+    <b class="font-gauge">{{ dist_val(status.range_km)|int }}</b>
+    <span class="stat-label">{{ dist_unit() }} · {{ t('range') }}</span>
     {% endif %}
   </div>
-  {% if status.get('fuel_range_km') %}
-  <div class="text-right">
-    <div class="stat-label">{{ t('reev_fuel_range') }}</div>
-    <div class="stat-value text-amber-300">{{ dist_val(status.fuel_range_km)|int }} <span class="text-base font-normal text-slate-400">{{ dist_unit() }}</span></div>
+
+  <div class="nx-legs">
+    <div>
+      <div class="stat-label">⚡ {{ t('battery') }}</div>
+      <div class="nx-leg-val font-gauge" style="color:{{ ev_color }}">{{ soc|dec(1) }}<span>%</span></div>
+      <div class="nx-leg-sub">
+        {% if reev %}<div>{{ t('range') }}: <b>{{ dist_val(status.range_km)|int }} {{ dist_unit() }}</b></div>{% endif %}
+        {% if ests and ests.show_both %}
+        <div>{{ t('range_est_at').replace('{pct}', ests.limit_est.pct|int|string) }}: <b>{{ dist_val(ests.limit_est.km)|int }}</b> {{ dist_unit() }}</div>
+        <div>{{ t('range_est_100') }}: <b>{{ dist_val(ests.full_est.km)|int }}</b> {{ dist_unit() }}</div>
+        {% elif ests %}
+        <div>{{ t('range_est_100') }}: <b>{{ dist_val(ests.full_est.km)|int }}</b> {{ dist_unit() }}</div>
+        {% endif %}
+        {# #200 — what the energy in the pack cost on average, i.e. the rate the next trip is costed at.
+           Deliberately NOT shortened to just "Avg price" — the Charges page already uses that for a
+           different figure, the period average, and two different numbers must not share a label.
+           Absent (not "—") until the first priced charge: there is genuinely no rate yet, and a dash
+           under a battery reads as "free". `is not none`, not truthiness: for an owner whose charges
+           are all free the pack really is free, and 0.000 must be PRINTED. #}
+        {% if battery_price is not none %}
+        <div title="{{ t('blended_price_help') }}">{{ t('blended_price') }}: <b>{{ battery_price | price3 }}</b> {{ currency.symbol }}/kWh</div>
+        {% endif %}
+      </div>
+    </div>
+    {% if reev %}
+    {# REEV dual-energy — the fuel tank beside the battery, only when the car actually reports fuel,
+       so a BEV never sees an empty block. range_km stays the EV-only range (signal 3260). #}
+    <div class="text-right">
+      <div class="stat-label">{{ t('reev_fuel_level') }} ⛽</div>
+      <div class="nx-leg-val font-gauge" style="color:var(--nx-fuel)">{{ status.fuel_level_pct | nice }}<span>%</span></div>
+      <div class="nx-leg-sub">
+        {% if status.get('fuel_range_km') %}<div>{{ t('reev_fuel_range') }}: <b>{{ dist_val(status.fuel_range_km)|int }} {{ dist_unit() }}</b></div>{% endif %}
+        {# The litres the car counts itself (signal 3263) — measured, worth more than the float
+           gauge's % (#202). #}
+        {% if status.get('fuel_liters') %}<div><b>{{ status.fuel_liters | nice }} L</b></div>{% endif %}
+      </div>
+    </div>
+    {% endif %}
   </div>
-  {% endif %}
-</div>
-<!-- Fuel level bar (amber, mirrors the SOC bar above) -->
-<div class="w-full bg-slate-700 rounded-full h-3 mb-3">
-  <div class="h-3 rounded-full" style="width:{{ status.fuel_level_pct }}%; background:linear-gradient(90deg,#d97706,#f59e0b)"></div>
-</div>
-{% if status.get('combined_range_km') %}
-<!-- Combined range = battery + fuel: the total distance a range-extender can cover, its headline number -->
-<div class="flex items-center justify-between rounded-lg px-3 py-2 mb-5"
-     style="background:#22c55e12;border:1px solid #22c55e33">
-  <span class="text-xs text-slate-300">🔋+⛽ {{ t('reev_combined_range') }}</span>
-  <span class="text-sm font-bold text-green-400">{{ dist_val(status.combined_range_km)|int }} {{ dist_unit() }}</span>
+
+  <!-- Status row -->
+  <div class="nx-strip">
+    <div>
+      <div class="stat-label">{{ t('state') }}</div>
+      <div class="font-gauge {{ state_color(status) }}">{{ state }}</div>
+    </div>
+    <div>
+      <div class="stat-label">{{ t('speed') }}</div>
+      <div class="font-gauge text-white">{{ speed_val(status.speed_kmh)|int }} <small>{{ speed_unit() }}</small></div>
+    </div>
+    <div>
+      <div class="stat-label">{{ t('gear') }}</div>
+      <div class="font-gauge text-white">{{ status.gear or 'P' }}</div>
+    </div>
+  </div>
 </div>
 {% endif %}
-{% endif %}
 
-<!-- Status row -->
-<div class="grid grid-cols-3 gap-3 text-center mb-4">
-  <div class="bg-slate-750 rounded-lg p-3">
-    <div class="stat-label">{{ t('state') }}</div>
-    <div class="font-semibold {{ state_color(status) }}">{{ state }}</div>
-  </div>
-  <div class="bg-slate-750 rounded-lg p-3">
-    <div class="stat-label">{{ t('speed') }}</div>
-    <div class="font-semibold text-white">{{ speed_val(status.speed_kmh)|int }} <span class="text-xs text-slate-400">{{ speed_unit() }}</span></div>
-  </div>
-  <div class="bg-slate-750 rounded-lg p-3">
-    <div class="stat-label">{{ t('gear') }}</div>
-    <div class="font-semibold text-white text-lg">{{ status.gear or 'P' }}</div>
-  </div>
-</div>
-
-<!-- Details row -->
-{# #144 — a sensor this car has NEVER reported is not shown at all. A row that reads "—" for ever is
-   still a row promising a number that will never come; @staffhotel-beep watched two of them all
-   summer. `absent_temps` is measured, not guessed: it only names a sensor after 50 polls with
-   nothing in it, so a fresh install shows every row until there is evidence. And where the sensor
-   DOES exist but this poll missed it, the row stays and says "—" — the old `(x or 0)` printed 0 °C,
-   which in August is not ambiguous, it is absurd.
-
-   Called ONCE and held: it is a query over the recent polls, the three gates below would each run
-   it, and this card re-renders on every htmx tick. #}
+{% if part in ('both', 'tiles') %}
+{# #144 — a sensor this car has NEVER reported is not shown at all; `absent_temps` only names a
+   sensor after 50 polls with nothing in it. Where the sensor DOES exist but this poll missed it, the
+   tile stays and says "—": the old `(x or 0)` printed 0 °C. Called ONCE and held: it is a query. #}
 {% set absent = absent_temps() %}
-<div class="grid grid-cols-2 gap-3 text-sm">
-  {# These are half-width cells, so an ODD number of them leaves a hole in the last row — and the
-     odometer alone in a 130px column wraps its own value onto a second line. Odd total ⟺ an even
-     number of temperatures survive, so the odometer takes the full width exactly then, and the
-     grid closes flush whether three rows are hidden or none. #}
-  <div class="flex justify-between gap-2 text-slate-400{{ ' col-span-2' if absent|length is odd else '' }}">
-    <span class="min-w-0 break-words">{{ t('odometer') }}</span>
-    <span class="text-white font-medium whitespace-nowrap">{{ (status.odometer_km or 0) | dist(0) }}</span>
-  </div>
-  {% if 'inside_temp' not in absent %}
-  <div class="flex justify-between gap-2 text-slate-400">
-    <span class="min-w-0 break-words">{{ t('inside_temp') }}</span>
-    <span class="text-white font-medium whitespace-nowrap">{{ status.inside_temp | temp(0) if status.inside_temp is not none else '—' }}</span>
+{% if part == 'both' %}<div id="status-tiles" hx-swap-oob="innerHTML">{% endif %}
+<div class="nx-tiles">
+  {% if 'outside_temp' not in absent %}
+  <div class="nx-tile">
+    <div class="stat-label">{{ t('outside_temp_label') }} <span class="cursor-help normal-case" tabindex="0" data-tip="{{ t('outside_temp_title') }}">ⓘ</span></div>
+    <div class="nx-tile-val font-gauge">{{ status.outside_temp | temp(0) if status.outside_temp is not none else '—' }}</div>
   </div>
   {% endif %}
-  {% if 'outside_temp' not in absent %}
-  <div class="flex justify-between gap-2 text-slate-400">
-    <span class="min-w-0 break-words">{{ t('outside_temp_label') }} <span class="text-slate-600 cursor-help" tabindex="0" data-tip="{{ t('outside_temp_title') }}">ⓘ</span></span>
-    <span class="text-white font-medium whitespace-nowrap">{{ status.outside_temp | temp(0) if status.outside_temp is not none else '—' }}</span>
+  {% if 'inside_temp' not in absent %}
+  <div class="nx-tile">
+    <div class="stat-label">{{ t('inside_temp') }}</div>
+    <div class="nx-tile-val font-gauge">{{ status.inside_temp | temp(0) if status.inside_temp is not none else '—' }}</div>
   </div>
   {% endif %}
   {% if 'ac_target' not in absent %}
-  <div class="flex justify-between gap-2 text-slate-400">
-    <span class="min-w-0 break-words">{{ t('ac_target') }}</span>
-    <span class="text-white font-medium whitespace-nowrap">
-      {% if status.climate_target_temp is not none %}{{ status.climate_target_temp | temp(0) }}{% else %}—{% endif %}
-    </span>
+  <div class="nx-tile">
+    <div class="stat-label">{{ t('ac_target') }}</div>
+    <div class="nx-tile-val font-gauge">{% if status.climate_target_temp is not none %}{{ status.climate_target_temp | temp(0) }}{% else %}—{% endif %}</div>
   </div>
   {% endif %}
   {% if 'battery_temp' not in absent %}
-  <div class="flex justify-between gap-2 text-slate-400">
-    <span class="min-w-0 break-words">{{ t('battery_temp') }}</span>
-    <span class="text-white font-medium whitespace-nowrap">
-      {# `is not none`, not truthiness: these two rows dropped a genuine 0 °C. #144 is that absence
-         must not read as zero; the mirror of it is that zero must not read as absence, and a pack
-         at exactly 0.0 in a northern winter is the one reading its owner is watching for. #}
-      {% if status.battery_min_temp is not none %}{{ status.battery_min_temp | temp(0) }}{% else %}—{% endif %}
-    </span>
+  <div class="nx-tile">
+    <div class="stat-label">{{ t('battery_temp') }}</div>
+    {# `is not none`, not truthiness: a pack at exactly 0.0 in a northern winter is the one reading
+       its owner is watching for. #}
+    <div class="nx-tile-val font-gauge">{% if status.battery_min_temp is not none %}{{ status.battery_min_temp | temp(0) }}{% else %}—{% endif %}</div>
   </div>
   {% endif %}
-  {# The car has to have SAID something. A C10 never sends 1255 (#256), and printing "Inactive"
-     for a signal that does not exist reads as "your car is not protected" — the one direction a
-     missing value must never fall in. Absent is not zero. #}
+  <div class="nx-tile">
+    <div class="stat-label">{{ t('odometer') }}</div>
+    <div class="nx-tile-val font-gauge">{{ (status.odometer_km or 0) | dist(0) }}</div>
+  </div>
+  {# The plug at a glance; the full charge line (kW · % · time to the limit) is the chip under the car.
+     Last tile of a 3-column grid: it stretches over whatever the absent sensors left open in its row,
+     so the grid never ends in a hole (Silvio's T03 screenshot, the same rule on the old 2 columns). #}
+  {% set n_tiles = 2 + (['outside_temp', 'inside_temp', 'ac_target', 'battery_temp'] | reject('in', absent) | list | length) %}
+  <div class="nx-tile{{ ' col-span-3' if n_tiles % 3 == 1 else ' col-span-2' if n_tiles % 3 == 2 else '' }}">
+    <div class="stat-label">{{ t('charging') }}</div>
+    {% if status.charging %}
+    <div class="nx-tile-val font-gauge" style="color:var(--nx-ev)">{% if status.charge_power_kw %}{{ '%.1f'|format(status.charge_power_kw) }} <small>kW</small>{% else %}{{ status.soc | round | int }}<small>%</small>{% endif %}</div>
+    {% elif status.cable_connected %}
+    <div class="nx-tile-txt" style="color:var(--nx-ev)">{{ t('cable_connected') }}</div>
+    {% elif status.cable_connected is not none %}
+    <div class="nx-tile-txt">{{ t('cable_not_connected') }}</div>
+    {% else %}
+    <div class="nx-tile-val font-gauge">—</div>
+    {% endif %}
+  </div>
+</div>
+{% if part == 'both' %}</div>{% endif %}
+{% endif %}
+
+{% if part in ('both', 'rows') %}
+{% if part == 'both' %}<div id="status-rows" hx-swap-oob="innerHTML">{% endif %}
+<div class="nx-rows">
+  {# The car has to have SAID something. A C10 never sends 1255 (#256), and printing "Inactive" for a
+     signal that does not exist reads as "your car is not protected". Absent is not zero. #}
   {% if status.security_active is not none %}
-  <div class="flex justify-between gap-2 text-slate-400 col-span-2">
+  <div>
     <span class="min-w-0 break-words">🔒 {{ t('security_label') }}</span>
     <span class="font-semibold whitespace-nowrap {% if status.security_active %}text-emerald-400{% else %}text-slate-500{% endif %}">
       {% if status.security_active %}{{ t('security_on') }}{% else %}{{ t('security_off') }}{% endif %}
     </span>
   </div>
   {% endif %}
-  <div class="flex justify-between gap-2 text-slate-400 col-span-2">
-    <span>READY<span class="text-slate-600 cursor-help ml-1" tabindex="0" data-tip="{{ t('ready_state_help') }}">ⓘ</span></span>
+  <div>
+    <span>READY<span class="cursor-help ml-1" tabindex="0" data-tip="{{ t('ready_state_help') }}">ⓘ</span></span>
     <span class="font-semibold whitespace-nowrap {% if status.ready %}text-emerald-400{% else %}text-slate-500{% endif %}">
       {% if status.ready is none %}—{% elif status.ready %}{{ t('ready_state_on') }}{% else %}{{ t('ready_state_off') }}{% endif %}
     </span>
   </div>
-  {# No OTA row. It never said anything about the CAR: the versions are told only to the account that
-     OWNS it, and the inbox of an account the car is shared with carries no vehicle notices — so on the
-     arrangement Mate is built for (owner account on the phone's official app, Mate on a shared one)
-     the row read "None" for ever, and "None" reads as "you are up to date". Measured 28/09/2026 on a
-     real B10 through that shared account: the vehicle-update endpoint answers code 40.
-     The OTA Update Notice entity stays in Home Assistant (#277) — it is OFF, not wrong.
+  {# No OTA row: the versions are told only to the account that OWNS the car, so on a shared account
+     it read "None" for ever, and "None" reads as "you are up to date".
      → tests/test_the_overview_does_not_claim_the_car_is_up_to_date.py #}
-  <div class="flex justify-between gap-2 text-slate-400 col-span-2">
+  <div>
     <span class="min-w-0 break-words">{{ t('last_seen') }}</span>
-    <!-- WHEN THE CAR LAST REPORTED, not when we last wrote a row. The poller records a row every
-         30 s even while the cloud re-serves one frozen frame, so this used to read "22 seconds
-         ago" over data that was hours old (#232) — and a figure that is wrong is worse than one
-         that is missing. data_age_s is always measured from the frame's own timestamp; it is None
-         only for a car that reports no clock, and there the row time is all we have.
-
-         The amber stays a MARK, not a second number: it fires on the case worth flagging — the
-         link died while the car was moving or charging (#178) — and a parked, sleeping car never
-         lands there. Printing the age twice under one label would be two correct numbers saying
-         the same thing, which reads as a defect even when both are right. -->
+    <!-- WHEN THE CAR LAST REPORTED, not when we last wrote a row (#232). The amber marks the link
+         dying while the car was moving or charging (#178). -->
     <span class="{{ 'text-amber-400' if status.data_age else 'text-white' }} font-medium whitespace-nowrap"
           {% if status.data_age %}title="{{ t('data_age_hint') }}"{% endif %}>
       {{ ago(status.data_age_s if status.data_age_s is not none else status.last_seen_s) }}
     </span>
   </div>
   {% if car_resp %}
-  <div class="flex justify-between items-center text-slate-400 col-span-2 gap-2" title="{{ t('car_resp_hint') }}">
+  <div title="{{ t('car_resp_hint') }}">
     <span class="flex-shrink-0">📶 {{ t('car_resp_title') }}</span>
     <span class="font-semibold flex items-center justify-end gap-1.5 text-right">
       {% if car_resp.state == 'unknown' %}
-      <span class="text-base leading-none opacity-60">⚪</span>
+      <span class="nx-dot" style="background:var(--nx-mute)"></span>
       <span class="text-xs text-slate-500 font-normal whitespace-nowrap">—</span>
       {% else %}
-      <span class="text-base leading-none">{% if car_resp.state == 'responsive' %}🟢{% elif car_resp.state == 'intermittent' %}🟡{% else %}🔴{% endif %}</span>
+      <span class="nx-dot" style="background:{% if car_resp.state == 'responsive' %}var(--nx-ok){% elif car_resp.state == 'intermittent' %}var(--nx-fuel){% else %}#F26B6B{% endif %}"></span>
       <span class="text-xs text-slate-500 font-normal whitespace-nowrap">{{ car_resp.confirmed }}/{{ car_resp.total }}{% if car_resp.avg_latency_ms %} · {{ (car_resp.avg_latency_ms / 1000) | round(1) }}s{% endif %}</span>
       {% endif %}
     </span>
   </div>
   {% endif %}
 </div>
+{% if part == 'both' %}</div>{% endif %}
+{% endif %}
 
 {% else %}
 <div class="text-center py-8 text-slate-400">

@@ -53,9 +53,9 @@ def test_the_trip_rate_is_printed_when_it_is_zero():
 
 def test_the_battery_price_is_printed_when_it_is_zero():
     tpl = _read("templates/partials/status_card.html")
-    assert tpl.count("battery_price is not none") == 2, (
-        "both the block AND the spacing class must test for None, or the card mis-spaces"
-    )
+    # Fork ("Notturno" Overview): the price is a line of the battery leg, with no spacing class of
+    # its own any more — one guard, and it must test for None.
+    assert tpl.count("battery_price is not none") == 1
     assert "{% if battery_price %}" not in tpl
 
 
