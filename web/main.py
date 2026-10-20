@@ -6421,6 +6421,16 @@ async def run_command(name: str, request: Request, background_tasks: BackgroundT
                              html='<span style="color:#ef4444">Unknown command</span>',
                              payload={"ok": False, "error": "unknown_command"})
 
+    from read_only import read_only
+    if read_only():
+        _msg = {"it": "Mate è in sola lettura (MATE_READ_ONLY)",
+                "fr": "Mate est en lecture seule (MATE_READ_ONLY)",
+                "de": "Mate ist schreibgeschützt (MATE_READ_ONLY)"}.get(
+                    db_reader.get_language(), "Mate is read-only (MATE_READ_ONLY)")
+        return _cmd_response(request, status=403,
+                             payload={"ok": False, "error": _msg, "read_only": True},
+                             html=f'<span data-warn="1" style="color:#fbbf24">🔒 {_msg}</span>')
+
     # Ability gate (defence in depth, mirrors the hidden button): refuse a command the car doesn't
     # declare it can do — e.g. unlock-charge-cable on a T03, which never declares code 48 (#142) —
     # instead of bouncing a no-op off the car. Every command looks the vehicle up: the cloud's own

@@ -34,6 +34,7 @@ from leapmotor_cloud.signing import sign_authenticated
 from leapmotor_cloud.session import session_device_id
 from leapmotor_cloud.b10_commands import interpret
 from command_contracts import COMMAND_RULES, APPOINTMENT_PATH, prepare, charge
+from read_only import read_only
 from session_material import certificate_usable as _certificate_usable_uncached
 
 # Whether the account certificate is usable is a question about two FILES, and the answer only
@@ -218,6 +219,10 @@ class NewAPIClient(MateClientCompatibility):
         origin = validate_url(origin, ALLOWED_HOSTS, origin=True)
         if not _read_allowed(path) and path not in {LOGIN_PATH,CONTROL_PATH,VERIFY_PATH,RESULT_PATH,APPOINTMENT_PATH}:
             raise LeapmotorApiError('Endpoint not migrated; legacy fallback disabled')
+        # MATE_READ_ONLY: the one place every command leaves through, so the web, MQTT and the
+        # poller's own automations are all stopped here, whatever their buttons said.
+        if path in {CONTROL_PATH,VERIFY_PATH,RESULT_PATH,APPOINTMENT_PATH} and read_only():
+            raise LeapmotorApiError('Command not sent: read_only (MATE_READ_ONLY is set)')
         core = dict(source='leapmotor',channel='1',acceptLanguage=self.language,
                     version='V1.16.4-1',deviceType='android',nonce=str(secrets.randbelow(10**15)),
                     timestamp=str(int(time.time()*1000)),deviceId=self.device_id)

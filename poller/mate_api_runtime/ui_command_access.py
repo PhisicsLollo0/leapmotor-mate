@@ -6,6 +6,7 @@ import time
 from types import SimpleNamespace
 from command_contracts import require, prepare
 from leapmotor_cloud.mate_compat import Vehicle
+from read_only import read_only
 
 GROUPS = {
  '110': 'lock unlock', '120': 'find_car', '130': 'open_trunk close_trunk',
@@ -70,7 +71,7 @@ def remember_refusal(vin, username, command, code, *, get_setting, set_setting):
 
 def allowed(snapshot, username, vin, command, *, now=None, refusals=()):
     cmd = COMMANDS.get(command)
-    if cmd is None or command in refusals:
+    if cmd is None or command in refusals or read_only():
         return False
     try:
         now = time.time() if now is None else now
