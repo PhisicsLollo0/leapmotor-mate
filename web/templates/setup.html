@@ -597,10 +597,9 @@ function buildCarCards(cars) {
   const mainPin = (document.querySelector('input[name="pin"]') || {}).value || '';
   let html = '';
   cars.forEach(car => {
-    // Belt and braces, exactly as the single-car selector does it: this build must never draw a
-    // pack it isn't meant to offer, whatever the server handed over.
+    // Every pack the server sends, range-extenders included: since 4.7.0 the official build supports
+    // them (battery_options_for_build), and hiding them here left a REEV owner no pack to pick.
     let options = car.battery_options || [];
-    if (!RESEARCH) options = options.filter(o => !o.reev);
     CARS[car.vin] = {vin: car.vin, car_type: car.car_type,
                      battery: options.length ? String(options[0].v) : '',
                      is_reev: options.length && options[0].reev ? '1' : '0', pin: mainPin};
@@ -651,10 +650,6 @@ function buildCarCards(cars) {
 }
 
 function buildBatterySelector(options) {
-  // Belt and braces: the server already filters the research-only packs out of this build, but this
-  // renderer draws whatever it is handed. Filtering here too means a future edit to the map can't
-  // quietly put one back in front of a user it isn't meant for.
-  if (!RESEARCH) options = options.filter(function (o) { return !o.reev; });
   const s = strings[currentLang];
   let html = `<div style="font-size:13px;font-weight:500;color:#cbd5e1;margin-bottom:8px">${s.batteryLabel}</div>`;
   html += `<div style="display:flex;flex-direction:column;gap:8px">`;
