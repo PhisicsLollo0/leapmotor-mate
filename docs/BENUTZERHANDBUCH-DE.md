@@ -1,8 +1,16 @@
 # LeapMotor Mate — Benutzerhandbuch
 
-> **Mate-Version:** v4.15.6 · **Sprache:** Deutsch
+> **Mate-Version:** v4.15.7 · **Sprache:** Deutsch
 
-## Neu in Version 4.15.6
+## Neu in Version 4.15.7
+
+**Der Batteriezustand zählt einen zusammengeführten Ladevorgang ganz.** Ein Ladevorgang, den das Auto in
+Teilen gemeldet hat und der zu einer Sitzung zusammengeführt wurde (von Mate nach einer kurzen Pause oder
+von Hand mit *Mit vorherigem zusammenführen* auf der Seite *Ladevorgänge*), liefert der Seite
+*Batteriezustand* jetzt die Energie aller Teile. Bisher zählte nur der erste Teil: Der Ladevorgang fehlte
+im Diagramm oder ergab eine Kapazität aus nur einem Teil der Sitzung.
+
+### Neu in Version 4.15.6
 
 **Der MQTT-Stecker-Sensor folgt dem Kabel.** Mit MQTT ist der Sensor *Plug Connected* (und für EVCC
 `evcc/plugged`) jetzt immer dann an, wenn die Übersicht das Kabel zeigt: auch nach einem beendeten

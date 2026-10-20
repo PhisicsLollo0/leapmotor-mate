@@ -1,8 +1,16 @@
 # LeapMotor Mate — Manuel utilisateur
 
-> **Version de Mate :** v4.15.6 · **Langue :** Français
+> **Version de Mate :** v4.15.7 · **Langue :** Français
 
-## Nouveautés de la version 4.15.6
+## Nouveautés de la version 4.15.7
+
+**La santé de la batterie compte une recharge fusionnée en entier.** Une recharge que la voiture a
+enregistrée en plusieurs morceaux et qui a été réunie en une seule séance (par Mate après une courte pause,
+ou à la main avec *Fusionner avec la précédente* sur la page *Recharges*) donne maintenant à la page *Santé
+de la batterie* l'énergie de tous ses morceaux. Jusqu'ici seul le premier morceau comptait : la recharge
+restait hors du graphique, ou donnait une capacité calculée sur une partie seulement de la séance.
+
+### Nouveautés de la version 4.15.6
 
 **Le capteur MQTT de la prise suit le câble.** Avec MQTT activé, le capteur *Plug Connected* (et
 `evcc/plugged` pour EVCC) est désormais allumé chaque fois que l'Aperçu montre le câble : aussi après

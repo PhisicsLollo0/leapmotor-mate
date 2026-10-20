@@ -1,8 +1,16 @@
 # LeapMotor Mate — Manuale utente
 
-> **Versione di Mate:** v4.15.6 · **Lingua:** Italiano
+> **Versione di Mate:** v4.15.7 · **Lingua:** Italiano
 
-## Novità della 4.15.6
+## Novità della 4.15.7
+
+**La salute della batteria conta intera una ricarica unita.** Una ricarica che l'auto ha registrato a
+pezzi e che è stata unita in una sola sessione (da Mate dopo una breve pausa, o a mano con *Unisci alla
+precedente* nella pagina *Ricariche*) ora dà alla pagina *Salute batteria* l'energia di tutti i suoi pezzi.
+Finora contava solo il primo pezzo: la ricarica restava fuori dal grafico, oppure dava una capacità
+calcolata su una parte sola della sessione.
+
+### Novità della 4.15.6
 
 **Il sensore MQTT della presa segue il cavo.** Con MQTT attivo, il sensore *Plug Connected* (e
 `evcc/plugged` per EVCC) ora è acceso ogni volta che la Panoramica mostra il cavo: anche dopo che una

@@ -1,8 +1,16 @@
 # LeapMotor Mate — Manual de usuario
 
-> **Versión de Mate:** v4.15.6 · **Idioma:** Español
+> **Versión de Mate:** v4.15.7 · **Idioma:** Español
 
-## Novedades de la versión 4.15.6
+## Novedades de la versión 4.15.7
+
+**La salud de la batería cuenta entera una carga unida.** Una carga que el coche registró en partes y que
+se unió en una sola sesión (por Mate tras una pausa corta, o a mano con *Unir con la anterior* en la página
+*Cargas*) ahora da a la página *Salud de la batería* la energía de todas sus partes. Hasta ahora solo
+contaba la primera parte: la carga quedaba fuera del gráfico, o daba una capacidad calculada con solo una
+parte de la sesión.
+
+### Novedades de la versión 4.15.6
 
 **El sensor MQTT del conector sigue al cable.** Con MQTT activado, el sensor *Plug Connected* (y
 `evcc/plugged` para EVCC) ahora está encendido siempre que el Resumen muestra el cable: también después

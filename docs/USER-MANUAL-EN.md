@@ -1,8 +1,15 @@
 # LeapMotor Mate — User Manual
 
-> **Mate version:** v4.15.6 · **Language:** English
+> **Mate version:** v4.15.7 · **Language:** English
 
-## New in 4.15.6
+## New in 4.15.7
+
+**Battery health counts a joined charge whole.** A charge the car reported in pieces and that is joined
+into one session (by Mate after a short pause, or by hand with *Join with previous* on the *Charges* page)
+now gives the *Battery health* page the energy of all its pieces. Until now only the first piece counted:
+the charge was left out of the chart, or gave a capacity from part of the session.
+
+### New in 4.15.6
 
 **The MQTT plug sensor follows the cable.** With MQTT on, the *Plug Connected* sensor (and EVCC's
 `evcc/plugged`) is now on whenever the Overview shows the cable: also after a charge has finished, or

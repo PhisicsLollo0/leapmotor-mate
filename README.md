@@ -1,7 +1,7 @@
 # LeapMotor Mate
 
-**v4.15.6:** the MQTT plug sensor (and `evcc/plugged`) **shows the cable the Overview shows**, also after a charge has finished with the cable still in ([#429](https://github.com/ProtossBlaster/leapmotor-mate/issues/429)); the Overview's **car picture shows at once**, also while charging ([#427](https://github.com/ProtossBlaster/leapmotor-mate/pull/427), @arekm). In **4.15.5**: the Battery health page keeps the views you picked ([#426](https://github.com/ProtossBlaster/leapmotor-mate/pull/426), @arekm).
-See [release notes and upgrade impact](docs/releases/v4.15.6.md).
+**v4.15.7:** the Battery health page **counts a joined charge whole**, with the energy of all its pieces ([#430](https://github.com/ProtossBlaster/leapmotor-mate/pull/430), @ElRoscaoJr); the BetaTester build **closes by 20 November 2026** ([how to move to the official build](docs/BETA-TO-OFFICIAL.md)). In **4.15.6**: the MQTT plug sensor shows the cable the Overview shows ([#429](https://github.com/ProtossBlaster/leapmotor-mate/issues/429)).
+See [release notes and upgrade impact](docs/releases/v4.15.7.md).
 
 [![CI](https://github.com/ProtossBlaster/leapmotor-mate/actions/workflows/ci.yml/badge.svg)](https://github.com/ProtossBlaster/leapmotor-mate/actions/workflows/ci.yml)
 [![Docker](https://github.com/ProtossBlaster/leapmotor-mate/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/ProtossBlaster/leapmotor-mate/actions/workflows/docker-publish.yml)
@@ -360,8 +360,8 @@ Works with any MQTT broker (e.g. the Mosquitto add‑on). Use **Test connection*
 
 # LeapMotor Mate · Italiano
 
-**v4.15.6:** il sensore MQTT della presa (e `evcc/plugged`) **mostra il cavo che mostra la Panoramica**, anche dopo una ricarica finita con il cavo ancora dentro ([#429](https://github.com/ProtossBlaster/leapmotor-mate/issues/429)); la **foto dell'auto** in Panoramica **compare subito**, anche durante la ricarica ([#427](https://github.com/ProtossBlaster/leapmotor-mate/pull/427), @arekm). Nella **4.15.5**: la pagina Salute batteria tiene le viste scelte ([#426](https://github.com/ProtossBlaster/leapmotor-mate/pull/426), @arekm).
-Vedi [note di rilascio e impatto dell'aggiornamento](docs/releases/v4.15.6.md#italiano).
+**v4.15.7:** la pagina Salute batteria **conta intera una ricarica unita**, con l'energia di tutti i suoi pezzi ([#430](https://github.com/ProtossBlaster/leapmotor-mate/pull/430), @ElRoscaoJr); la build BetaTester **chiude entro il 20 novembre 2026** ([come passare a quella ufficiale](docs/BETA-TO-OFFICIAL.md#italiano)). Nella **4.15.6**: il sensore MQTT della presa mostra il cavo che mostra la Panoramica ([#429](https://github.com/ProtossBlaster/leapmotor-mate/issues/429)).
+Vedi [note di rilascio e impatto dell'aggiornamento](docs/releases/v4.15.7.md#italiano).
 
 **Tracciamento viaggi, registro ricariche e controllo remoto per veicoli Leapmotor** — un companion self‑hosted (un *TeslaMate* per Leapmotor). Funziona come **add‑on di Home Assistant** o come **container Docker standalone**.
 
