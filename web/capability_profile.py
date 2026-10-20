@@ -316,6 +316,9 @@ def command_shown(vin: str, command_key: str, get_setting: Optional[Callable] = 
     feature is known-absent on this model (`car_type` → MODEL_ABSENT, e.g. heated-seat commands on a
     T03 — #144); otherwise mapped to its gating feature (COMMAND_FEATURE), and commands with neither
     are always shown."""
+    from read_only import read_only
+    if read_only():           # MATE_READ_ONLY: nothing is offered, in the demo too
+        return False
     if os.environ.get("MATE_DEMO", "").lower() not in ("1", "true"):
         # The cloud decides what may be SENT; what we SHOW also keeps what was measured on the
         # car. A model that over-declares would otherwise get a button that can never act: the
