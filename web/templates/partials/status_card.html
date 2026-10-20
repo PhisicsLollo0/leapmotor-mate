@@ -84,7 +84,12 @@
         {% if status.get('fuel_range_km') %}<div>{{ t('reev_fuel_range') }}: <b>{{ dist_val(status.fuel_range_km)|int }} {{ dist_unit() }}</b></div>{% endif %}
         {# The litres the car counts itself (signal 3263) — measured, worth more than the float
            gauge's % (#202). #}
-        {% if status.get('fuel_liters') %}<div><b>{{ status.fuel_liters | nice }} L</b></div>{% endif %}
+        {% if status.get('fuel_liters') %}<div><b>{{ status.fuel_liters | nice }} L</b></div>
+        {% elif reev_tank_l is defined %}
+        {# The car keeps its litre counter to itself: the % against the model's tank, as the Fuel page
+           does — marked ≈, because it is the float gauge's figure and not the car's own count. #}
+        <div title="{{ reev_tank_l() | dec(1) }} L">≈ <b>{{ (status.fuel_level_pct / 100 * reev_tank_l()) | dec(1) }} L</b></div>
+        {% endif %}
       </div>
     </div>
     {% endif %}
