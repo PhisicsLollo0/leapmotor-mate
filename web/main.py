@@ -1001,7 +1001,7 @@ def _route_svg(points: list[dict], w: int = 84, h: int = 48, pad: int = 6) -> st
     if not points or len(points) < 2:
         # Single point / no track → small marker dot, keeps row layout stable.
         return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}">'
-                f'<circle cx="{w/2}" cy="{h/2}" r="3" fill="#e63946"/></svg>')
+                f'<circle cx="{w/2}" cy="{h/2}" r="3" fill="#4FD8FF"/></svg>')
 
     lats = [p["latitude"] for p in points]
     lons = [p["longitude"] for p in points]
@@ -1027,12 +1027,13 @@ def _route_svg(points: list[dict], w: int = 84, h: int = 48, pad: int = 6) -> st
     ex, ey = pts[-1]
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}">'
-        f'<path d="{d}" fill="none" stroke="#ffffff" stroke-width="3.5" '
-        f'stroke-linecap="round" stroke-linejoin="round" opacity="0.35"/>'
-        f'<path d="{d}" fill="none" stroke="#e63946" stroke-width="2" '
+        # Fork (Notturno): the route in the theme's cyan over a soft glow of itself, green start, white end.
+        f'<path d="{d}" fill="none" stroke="#4FD8FF" stroke-width="5" '
+        f'stroke-linecap="round" stroke-linejoin="round" opacity="0.18"/>'
+        f'<path d="{d}" fill="none" stroke="#4FD8FF" stroke-width="1.8" '
         f'stroke-linecap="round" stroke-linejoin="round"/>'
-        f'<circle cx="{sx}" cy="{sy}" r="2.6" fill="#22c55e"/>'
-        f'<circle cx="{ex}" cy="{ey}" r="2.6" fill="#94a3b8"/>'
+        f'<circle cx="{sx}" cy="{sy}" r="2.6" fill="#57E3A0"/>'
+        f'<circle cx="{ex}" cy="{ey}" r="2.6" fill="#F3F8FF"/>'
         f'</svg>'
     )
 

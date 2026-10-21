@@ -25,7 +25,7 @@
      by all the day's kilometres, the ones the litres next to it use. See trips_calendar_month. #}
   {% set eff_all = day_totals.kwh_100km if is_reev else None %}
   {% if eff_all %}
-  <span class="eff-pill" style="color:#38bdf8" tabindex="0" data-tip="{{ t('avg_efficiency') }}">{{ eff_all | eff }}</span>
+  <span class="eff-pill" style="color:#4FD8FF" tabindex="0" data-tip="{{ t('avg_efficiency') }}">{{ eff_all | eff }}</span>
   {# Which kilometres the figure speaks for — same rule and same wording as the month strip above,
      and for the same reason: the litres next to it divide by all of them. See trips_calendar_month. #}
   {% if day_totals.kwh_100km_km and day_totals.km and (day_totals.km - day_totals.kwh_100km_km) > 0.5 %}
@@ -39,7 +39,7 @@
      the page header got theirs (@michapr, beta #11, reporting it a third time). The totals already
      carried the litres — they simply were not printed here. #}
   {% if is_reev and day_totals.fuel_l %}
-  <span class="text-amber-400 font-medium whitespace-nowrap" tabindex="0" data-tip="{{ t('trips_fuel_hint') }}">⛽ {{ day_totals.fuel_l | nice }} L{% if day_totals.fuel_l_100km %} · {{ day_totals.fuel_l_100km | nice }} L/100km{% endif %}</span>
+  <span class="text-fuel font-medium whitespace-nowrap" tabindex="0" data-tip="{{ t('trips_fuel_hint') }}">⛽ {{ day_totals.fuel_l | nice }} L{% if day_totals.fuel_l_100km %} · {{ day_totals.fuel_l_100km | nice }} L/100km{% endif %}</span>
   {% endif %}
   {% if day_totals.cost %}
   <span class="text-slate-300 whitespace-nowrap" tabindex="0" data-tip="{{ t('cost') }}">{{ day_totals.cost | money }}</span>

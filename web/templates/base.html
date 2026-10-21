@@ -166,12 +166,16 @@
 
     /* ── Trip row, and the charge row that reads like it ────────── */
     .trip-row {
-      display: flex; align-items: center; gap: .75rem;
-      padding: .5rem .75rem; border-radius: .5rem;
-      background: #060e1a; border: 1px solid #111c2e;
+      display: flex; align-items: center; gap: .9rem;
+      padding: .6rem .85rem; border-radius: .75rem;
+      background: #070B11; border: 1px solid #111a25;
       text-decoration: none; transition: background .15s, border-color .15s;
     }
-    .trip-row:hover { background: rgba(51,65,85,.4); border-color: #334155; }
+    .trip-row:hover { background: rgba(79,216,255,.05); border-color: rgba(79,216,255,.3); }
+    /* Fork (Notturno): the start time and the distance are what a row is scanned by — gauge type */
+    .trip-time { font-family: 'Saira Condensed', sans-serif; font-size: 1.35rem; font-weight: 500; line-height: 1.1; color: var(--nx-hi); }
+    .trip-time > span { font-family: Saira, sans-serif; }
+    .trip-km { font-family: 'Saira Condensed', sans-serif; font-size: 1.35rem; font-weight: 500; line-height: 1.1; color: var(--nx-hi); }
     @media (max-width: 639px) { .trip-row { column-gap: .5rem; } }   /* a phone's middle column needs the room */
     /* A charge row is a <summary>: the click opens the body under it, its buttons keep their own click. */
     .charge-row { cursor: pointer; list-style: none; border-color: #1e293b; }   /* four lines a row: a border a shade lighter than a trip's keeps them apart */
@@ -202,7 +206,7 @@
     .trip-places > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .trip-thumb {
       width: 84px; height: 48px; flex-shrink: 0; border-radius: .375rem;
-      background: #0a1424; border: 1px solid #1a2438; object-fit: cover;
+      background: #0A1018; border: 1px solid var(--nx-edge); object-fit: cover;
     }
 
     /* ── Charge card: where it happened ─────────────────────────── */
@@ -222,34 +226,31 @@
 
     /* ── SOC mini gauge (remaining vs used) ─────────────────────── */
     .soc-mini {
-      position: relative; width: 64px; height: 7px; flex-shrink: 0;
-      border-radius: 999px; background: #1e293b; overflow: hidden;
+      position: relative; width: 96px; height: 5px; flex-shrink: 0;
+      border-radius: 999px; background: #111a25; overflow: hidden;
     }
     .soc-mini i { position: absolute; top: 0; height: 100%; display: block; }
-    .soc-rem  { left: 0; background: #22c55e; }
-    .soc-used { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+    .soc-rem  { left: 0; background: linear-gradient(90deg, #4FD8FF, #8be8ff); box-shadow: 0 0 6px rgba(79,216,255,.6); }
+    .soc-used { background: linear-gradient(90deg, rgba(255,177,61,.55), rgba(248,113,113,.55)); }
 
-    /* ── Trips dashboard: hero tiles (Mushroom-gradient) ────────── */
-    .hero-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .75rem; }
+    /* ── Trips dashboard: the summary strip (fork, Notturno) ─────────
+       Same markup the four gradient tiles had (tests read it): one panel, four figures split by
+       hairlines, label above the number. The emoji badges stay in the HTML and are not drawn. */
+    .hero-grid { display: grid; grid-template-columns: repeat(2, 1fr);
+                 background: linear-gradient(180deg, var(--nx-panel), var(--nx-panel-2));
+                 border: 1px solid var(--nx-edge); border-radius: .875rem; padding: .9rem .25rem; row-gap: .9rem; }
     @media (min-width: 768px) { .hero-grid { grid-template-columns: repeat(4, 1fr); } }
-    .hero-tile {
-      position: relative; overflow: hidden; border-radius: 1rem;
-      padding: 1rem 1.1rem; display: flex; align-items: center; gap: .85rem;
-      border: 1px solid rgba(148,163,184,.12);
+    .hero-tile { padding: 0 1.15rem; border-left: 1px solid var(--nx-edge); min-width: 0; }
+    .hero-tile:nth-child(odd) { border-left: 0; }
+    @media (min-width: 768px) { .hero-tile:nth-child(odd) { border-left: 1px solid var(--nx-edge); } .hero-tile:first-child { border-left: 0; } }
+    .hero-tile > div:last-child { display: flex; flex-direction: column-reverse; justify-content: flex-end; }
+    .hero-ico { display: none; }
+    .hero-val   { font-family: 'Saira Condensed', sans-serif; font-size: 2.3rem; font-weight: 400; color: var(--nx-hi); line-height: 1.1; }
+    .hero-val .u { font-size: .95rem; color: var(--nx-mute); margin-left: .2rem; }
+    .hero-label { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--nx-mute); }
+    @media (max-width: 767px) {
+      .hero-val { font-size: 1.8rem; }
     }
-    .hero-ico {
-      width: 42px; height: 42px; flex-shrink: 0; border-radius: .75rem;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 1.25rem; background: rgba(255,255,255,.10);
-    }
-    .hero-val   { font-size: 1.5rem; font-weight: 700; color: #fff; line-height: 1.1; }
-    .hero-val .u { font-size: .8rem; font-weight: 400; color: rgba(255,255,255,.65); margin-left: .15rem; }
-    .hero-label { font-size: .7rem; text-transform: uppercase; letter-spacing: .05em;
-                  color: rgba(255,255,255,.6); margin-top: .15rem; }
-    .t-dist  { background: linear-gradient(135deg, #0d9488 0%, #115e59 100%); }
-    .t-trips { background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%); }
-    .t-eff   { background: linear-gradient(135deg, #334155 0%, #1e293b 100%); }
-    .t-regen { background: linear-gradient(135deg, #16a34a 0%, #14532d 100%); }
 
     /* ── Inline collapse button (inside year/month summaries) ─────── */
     .collapse-btn {
@@ -263,18 +264,11 @@
     .collapse-btn:hover { background: rgba(51,65,85,.6); border-color: #475569; color: #e2e8f0; }
     details[open] > summary .collapse-btn { display: inline-flex; }
 
-    /* ── Hero tiles: compact vertical layout on small phones ───────── */
+    /* ── Summary strip: two by two on small phones ──────────────── */
     @media (max-width: 639px) {
-      .hero-tile {
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
-        padding: .65rem .4rem;
-        gap: .3rem;
-      }
-      .hero-ico { width: 34px; height: 34px; font-size: 1rem; border-radius: .5rem; }
-      .hero-val  { font-size: 1.2rem; }
-      .hero-label { font-size: .62rem; letter-spacing: .03em; white-space: normal; line-height: 1.3; }
+      .hero-tile { padding: 0 .85rem; }
+      .hero-val  { font-size: 1.6rem; }
+      .hero-label { font-size: 10px; letter-spacing: .06em; white-space: normal; line-height: 1.3; }
     }
 
     :root { color-scheme: dark; }     /* the browser's own parts (date icons, pickers, scrollbars) drawn for a dark page */
@@ -302,13 +296,29 @@
        !important because the cell paints its border-color in an inline style attribute,
        which an ordinary rule would lose to. */
     .cal-day[data-selected] {
-      border-color: #14b8a6 !important;
-      box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.35);
+      border-color: #4FD8FF !important;
+      box-shadow: 0 0 0 1px #4FD8FF, 0 0 18px rgba(79, 216, 255, 0.35);
     }
+    /* Fork (Notturno): the Trips calendar as a heat map — `--h` (0…1) is the day's km against the
+       month's longest day, set on each cell by trips_calendar_month.html. A square on a phone; on a
+       computer a fixed, shorter row, so the month fits on screen with the day drawer under it. */
+    .nx-cal .nx-day { background: #070B11; border-color: #111a25; }
+    .nx-cal button.nx-day {
+      background: linear-gradient(180deg, rgba(79,216,255,calc(var(--h) * .30 + .03)), rgba(79,216,255,calc(var(--h) * .07)));
+      border-color: rgba(79,216,255,calc(.14 + var(--h) * .36));
+    }
+    .nx-cal button.nx-day:hover { border-color: rgba(79,216,255,.75); }
+    @media (min-width: 1024px) { .nx-cal .nx-day { aspect-ratio: auto; height: 5.25rem; } }
+    .nx-day-km { font-family: 'Saira Condensed', sans-serif; font-weight: 500; color: var(--nx-hi); font-size: .74rem; white-space: nowrap; letter-spacing: -.01em; }
+    @media (min-width: 640px) { .nx-day-km { font-size: 1.35rem; } }
+    .nx-dots { display: flex; gap: 3px; align-items: center; padding-top: 3px; }
+    .nx-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--nx-ev); opacity: .85; }
+    .nx-dots b { font-size: 9px; line-height: 1; color: var(--nx-ev); font-weight: 600; }
+    @media (max-width: 639px) { .nx-dots i { width: 3px; height: 3px; } .nx-dots { gap: 2px; } }
     /* a Shift-click or a held finger picks days, not the text between them or a callout */
     [data-range] > .cal-day { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
     /* a held day waiting for the tap that ends the range */
-    .cal-day[data-anchor] { outline: 2px dashed #14b8a6; outline-offset: 2px; }
+    .cal-day[data-anchor] { outline: 2px dashed #4FD8FF; outline-offset: 2px; }
   </style>
 </head>
 {% import "partials/_nav_icons.html" as nav %}

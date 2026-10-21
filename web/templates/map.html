@@ -4,13 +4,62 @@
 
 {% block content %}
 <div class="mb-5">
-  <h1 class="text-xl font-bold text-white">{{ t('map_title') }}</h1>
+  <h1 class="text-2xl font-semibold text-white">{{ t('map_title') }}</h1>
   <p class="text-sm text-slate-400 mt-1">{{ t('map_subtitle') }}</p>
 </div>
 
+{# Fork (Notturno): the map as tall as the screen allows, night tiles (the Overview's filter), routes
+   in the theme's cyan and semi-transparent — the roads you drive most overlap and glow — and the
+   legend, the layer switches and the two boxes in one panel floating over it. Without a map the same
+   panel sits in the page: the two boxes are the only place these preferences can be set (#270). #}
+<style>
+  .nx-map { position: relative; height: max(30rem, calc(100vh - 13rem)); }
+  .nx-map #map { position: absolute; inset: 0; background: #0A1018; }
+  .nx-map .leaflet-container { background: #0A1018; font-family: Saira, sans-serif; }
+  .nx-map .leaflet-tile-pane { filter: invert(1) hue-rotate(185deg) brightness(.62) contrast(1.25) saturate(.35); }
+  .nx-map .leaflet-bar a { background: #0B1119; color: var(--nx-soft); border-color: var(--nx-edge); }
+  .nx-map .leaflet-bar a:hover { background: #111a25; color: var(--nx-ev); }
+  .nx-map .leaflet-bar { border: 1px solid var(--nx-edge); }
+  .nx-map .leaflet-control-attribution { background: rgba(5,8,13,.7); color: var(--nx-mute); }
+  .nx-map .leaflet-control-attribution a { color: var(--nx-soft); }
+  .nx-map .leaflet-popup-content-wrapper, .nx-map .leaflet-popup-tip { background: #0B1119; color: var(--nx-ink); border: 1px solid var(--nx-edge); }
+  .leaflet-tooltip.nx-ptip { background: transparent; border: 0; box-shadow: none; color: var(--nx-hi);
+             font: 500 13px 'Saira Condensed', sans-serif; padding: 0; }
+  .leaflet-tooltip.nx-ptip::before { display: none; }
+  .nx-ov { background: rgba(8,12,18,.88); backdrop-filter: blur(8px); border: 1px solid var(--nx-edge);
+           border-radius: .875rem; padding: .75rem 1rem; font-size: .8125rem; color: var(--nx-ink); }
+  .nx-map .nx-ov { position: absolute; z-index: 500; top: .875rem; right: .875rem; width: 15.5rem; }
+  .nx-ov .nx-row { display: flex; align-items: center; gap: .6rem; padding: .3rem 0; }
+  .nx-ov .nx-row .c { margin-left: auto; font: 500 1.05rem 'Saira Condensed', sans-serif; color: var(--nx-hi); }
+  .nx-ov hr { border: 0; border-top: 1px solid var(--nx-edge); margin: .4rem 0; }
+  .nx-ov input[type=number] { margin-left: auto; width: 3.6rem; background: #070B11; border: 1px solid var(--nx-edge);
+           border-radius: .45rem; padding: .1rem .5rem; text-align: right; color: var(--nx-hi);
+           font: 500 1rem 'Saira Condensed', sans-serif; }
+  .nx-ov input[type=number] { -moz-appearance: textfield; }
+  .nx-ov input[type=number]::-webkit-inner-spin-button, .nx-ov input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .nx-sw { appearance: none; -webkit-appearance: none; width: 1.9rem; height: 1rem; border-radius: 999px; flex-shrink: 0;
+           background: #111a25; border: 1px solid var(--nx-edge); position: relative; cursor: pointer; transition: background .15s; }
+  .nx-sw::after { content: ''; position: absolute; left: 2px; top: 2px; width: .625rem; height: .625rem; border-radius: 50%;
+           background: var(--nx-mute); transition: left .15s, background .15s; }
+  .nx-sw:checked { background: rgba(79,216,255,.22); border-color: rgba(79,216,255,.6); }
+  .nx-sw:checked::after { left: calc(100% - .625rem - 2px); background: var(--nx-ev); box-shadow: 0 0 6px var(--nx-ev); }
+  .nx-sw:focus-visible { outline: 2px solid var(--nx-ev); outline-offset: 2px; }
+  .nx-key { width: 1.9rem; display: inline-flex; justify-content: center; flex-shrink: 0; }
+  .nx-stamp { position: absolute; z-index: 500; left: .875rem; bottom: .875rem; padding: .45rem .85rem;
+              background: rgba(8,12,18,.88); border: 1px solid var(--nx-edge); border-radius: .75rem; }
+  .nx-stamp b { font: 400 1.6rem 'Saira Condensed', sans-serif; color: var(--nx-hi); margin-right: .35rem; }
+  @media (max-width: 639px) {
+    .nx-map { height: 70vh; }
+    .nx-map .nx-ov { position: static; width: auto; margin-top: .75rem; }
+    .nx-map { display: flex; flex-direction: column; }
+    .nx-map #map { position: relative; flex: 1; border-radius: .875rem; overflow: hidden; }
+    .nx-stamp { bottom: auto; top: .75rem; left: auto; right: .75rem; }
+  }
+</style>
+
 {% if track %}
-<div class="card p-0 overflow-hidden">
-  <div id="map" style="height:560px"></div>
+<div class="nx-map">
+  <div id="map" class="rounded-[.875rem] border border-slate-700 overflow-hidden"></div>
   <link rel="stylesheet" href="static/vendor/leaflet/leaflet.css"/>
   <script src="static/vendor/leaflet/leaflet.js"></script>
   <script>
@@ -31,26 +80,24 @@
       referrerPolicy: 'origin'
     }).addTo(map);
 
-    // Each trip as its own connected polyline — never joined across trips. A white
-    // casing under a blue line keeps the route legible over any road colour (OSM
-    // motorways/primaries are red/orange/yellow, so a plain red line blended in). A
-    // gap-bridge run (real signal loss — see db_reader._split_track_gaps) gets its own white
-    // casing too, then a bold magenta dash on top — a colour used nowhere else on this map
-    // (not the route blue, not OSM's own grey/brown dashed tracks and borders), with dashes
-    // wide enough to read as a deliberate marking instead of blending into the base tiles.
+    // Each trip as its own connected polyline — never joined across trips. Fork (Notturno): on the
+    // night tiles a wide faint glow under a thin cyan line, both semi-transparent, so a road driven
+    // fifty times is brighter than one driven once. A gap-bridge run (real signal loss — see
+    // db_reader._split_track_gaps) keeps its bold magenta dash, a colour used nowhere else here.
+    const routesLayer = L.layerGroup().addTo(map);
     segments.forEach(function (trip) {
       trip.forEach(function (run) {
         if (run.gap) {
-          L.polyline(run.points, { color: '#ffffff', weight: 5, opacity: 0.6, lineCap: 'round' }).addTo(map);
-          L.polyline(run.points, { color: '#ec4899', weight: 3, opacity: 0.95, dashArray: '10,8', lineCap: 'round' }).addTo(map);
+          L.polyline(run.points, { color: '#05080D', weight: 5, opacity: 0.6, lineCap: 'round' }).addTo(routesLayer);
+          L.polyline(run.points, { color: '#ec4899', weight: 2.5, opacity: 0.95, dashArray: '10,8', lineCap: 'round' }).addTo(routesLayer);
         } else {
-          L.polyline(run.points, { color: '#ffffff', weight: 5,   opacity: 0.7, lineJoin: 'round', lineCap: 'round' }).addTo(map);
-          L.polyline(run.points, { color: '#2563eb', weight: 2.5, opacity: 0.9, lineJoin: 'round', lineCap: 'round' }).addTo(map);
+          L.polyline(run.points, { color: '#4FD8FF', weight: 7, opacity: 0.07, lineJoin: 'round', lineCap: 'round' }).addTo(routesLayer);
+          L.polyline(run.points, { color: '#4FD8FF', weight: 2.2, opacity: 0.45, lineJoin: 'round', lineCap: 'round' }).addTo(routesLayer);
         }
       });
     });
 
-    // Frequent places: bubble sized by visit count, on top of the routes.
+    // Frequent places: a ring sized by visit count, the count written inside, on top of the routes.
     const placesLayer = L.layerGroup();
     const placesVisibilityKey = 'mate.map.frequentPlacesVisible';
     let showPlaces = true;
@@ -58,10 +105,12 @@
     if (showPlaces) placesLayer.addTo(map);
     const maxV = places.reduce(function (m, p) { return Math.max(m, p.visits); }, 1);
     places.forEach(function (p) {
-      const r = 8 + 18 * (p.visits / maxV);
+      const r = 11 + 13 * (p.visits / maxV);
       L.circleMarker([p.latitude, p.longitude], {
-        radius: r, color: '#14b8a6', weight: 2, fillColor: '#14b8a6', fillOpacity: 0.45
-      }).addTo(placesLayer).bindPopup('{{ t('map_visits') }}: <b>' + p.visits + '</b>');
+        radius: r, color: '#F3F8FF', weight: 1.5, opacity: 0.9, fillColor: '#05080D', fillOpacity: 0.55
+      }).addTo(placesLayer)
+        .bindTooltip(String(p.visits), { permanent: true, direction: 'center', className: 'nx-ptip' })
+        .bindPopup('{{ t('map_visits') }}: <b>' + p.visits + '</b>');
     });
 
     // Charging stations: a small fixed-size marker per station (NOT scaled by session count —
@@ -69,38 +118,44 @@
     // shown inside. Popup lists the most recent sessions (deep-linked to their card on the
     // Charges page) and, past `recent_n`, a link to the same page pre-filtered to just this
     // station (?station=<key> — see get_charging_stations).
-    const r = 10;
+    const stationsLayer = L.layerGroup().addTo(map);
+    const r = 13;
     stations.forEach(function (s) {
       const icon = L.divIcon({
         className: '', iconSize: [r * 2, r * 2], iconAnchor: [r, r],
-        html: '<div style="width:' + (r * 2) + 'px;height:' + (r * 2) + 'px;border-radius:50%;'
-            + 'background:#f59e0b73;border:2px solid #f59e0b;color:#fff;font-weight:700;'
-            + 'display:flex;align-items:center;justify-content:center;font-size:10px;'
-            + 'box-shadow:0 0 0 2px #00000022">' + s.sessions + '</div>'
+        html: '<div style="width:' + (r * 2) + 'px;height:' + (r * 2) + 'px;border-radius:7px;'
+            + 'background:#0B1119;border:1.5px solid #57E3A0;color:#57E3A0;'
+            + 'font:600 12px \'Saira Condensed\',sans-serif;display:flex;align-items:center;justify-content:center;'
+            + 'box-shadow:0 0 12px rgba(87,227,160,.55)">⚡' + s.sessions + '</div>'
       });
 
       let popup = '<div style="min-width:180px">'
                 + '<b>' + (s.name ? s.name.replace(/</g, '&lt;') : '{{ t('map_unnamed_station') }}') + '</b><br>'
                 + '{{ t('map_station_sessions') }}: <b>' + s.sessions + '</b> · ' + s.kwh + ' kWh'
-                + (s.cost_fmt != null ? ' · ' + s.cost_fmt : '') + '<hr style="margin:6px 0;border-color:#334155">'
+                + (s.cost_fmt != null ? ' · ' + s.cost_fmt : '') + '<hr style="margin:6px 0;border-color:#17212E">'
                 + '<div style="max-height:150px;overflow-y:auto">';
       s.recent.forEach(function (c) {
         popup += '<div style="margin-bottom:3px"><a href="charges?highlight=' + c.id
-              + '" style="color:#60a5fa;text-decoration:none">' + (c.started_at || '').replace('T', ' ').slice(0, 16)
+              + '" style="color:#4FD8FF;text-decoration:none">' + (c.started_at || '').replace('T', ' ').slice(0, 16)
               + '</a> — ' + c.kwh + ' kWh' + (c.cost_fmt != null ? ' · ' + c.cost_fmt : '') + '</div>';
       });
       popup += '</div>';
       if (s.sessions > s.recent.length) {
-        popup += '<a href="charges?station=' + encodeURIComponent(s.key) + '" style="color:#f59e0b;font-weight:600;text-decoration:none">'
+        popup += '<a href="charges?station=' + encodeURIComponent(s.key) + '" style="color:#57E3A0;font-weight:600;text-decoration:none">'
               + '{{ t('map_station_view_all') }} (' + s.sessions + ') →</a>';
       }
       popup += '</div>';
 
-      L.marker([s.latitude, s.longitude], { icon: icon }).addTo(map).bindPopup(popup);
+      L.marker([s.latitude, s.longitude], { icon: icon }).addTo(stationsLayer).bindPopup(popup);
     });
   </script>
-</div>
-
+  {# Counted here rather than by the map script: that line ran while the page was still being
+     parsed and looked for `#map-pts`, an element that appears further DOWN this same document,
+     so it found nothing and the dash stayed on every map Mate has ever drawn. This is the same
+     number it meant to show — every point of every run, gap-bridges included — and it no longer
+     depends on the script, or on Leaflet, having run at all. #}
+  {% set punti = namespace(n=0) %}{% for viaggio in track %}{% for tratto in viaggio %}{% set punti.n = punti.n + tratto.points|length %}{% endfor %}{% endfor %}
+  <div class="nx-stamp"><b><span id="map-pts">{{ punti.n }}</span></b><span class="stat-label">{{ t('map_points') }}</span></div>
 {% else %}
 <div class="card flex items-center justify-center h-64 text-slate-500">
   <div class="text-center">
@@ -114,51 +169,65 @@
     <div>{{ t('map_no_data_filtered') if trips_shown else t('map_no_data') }}</div>
   </div>
 </div>
+<div class="mt-4 sm:max-w-xs">
 {% endif %}
 
 {# The legend, and the two boxes — OUTSIDE the map/no-map branch on purpose. The COUNTERS describe
-   the map, so they stay with it. The BOXES do not: they are preferences, and this row is the only
+   the map, so they stay with it. The BOXES do not: they are preferences, and this panel is the only
    place in Mate where they can be set (not Settings, not a URL parameter). Inside `{% if track %}`
    they took the user's way out with them — «Trips shown» = 1 landing on a trip without GPS points
    hid the map AND the box that said 1, with no way back but driving (#270 @speshos). #}
-<div class="mt-4 flex items-center gap-x-5 gap-y-1 flex-wrap text-xs text-slate-500">
+<div class="nx-ov">
   {% if track %}
-  <span><span style="color:#2563eb">—</span> {{ t('map_routes') }} ({{ track|length }})</span>
+  <label class="nx-row cursor-pointer">
+    <input id="map-show-routes" type="checkbox" class="nx-sw" checked>
+    <span>{{ t('map_routes') }}</span><span class="c">{{ track|length }}</span>
+  </label>
   {% if places %}
-  <label class="inline-flex items-center gap-1.5 cursor-pointer">
-    <input id="map-show-places" type="checkbox" checked style="accent-color:#14b8a6">
-    <span><span style="color:#14b8a6">●</span> {{ t('map_frequent_places') }} ({{ places|length }})</span>
+  <label class="nx-row cursor-pointer">
+    <input id="map-show-places" type="checkbox" class="nx-sw" checked>
+    <span>{{ t('map_frequent_places') }}</span><span class="c">{{ places|length }}</span>
   </label>
   {% endif %}
-  {% if stations %}<span><span style="color:#f59e0b">●</span> {{ t('map_charging_stations') }} ({{ stations|length }})</span>{% endif %}
-  {# Counted here rather than by the map script: that line ran while the page was still being
-     parsed and looked for `#map-pts`, an element that appears further DOWN this same document,
-     so it found nothing and the dash stayed on every map Mate has ever drawn. This is the same
-     number it meant to show — every point of every run, gap-bridges included — and it no longer
-     depends on the script, or on Leaflet, having run at all. #}
-  {% set punti = namespace(n=0) %}{% for viaggio in track %}{% for tratto in viaggio %}{% set punti.n = punti.n + tratto.points|length %}{% endfor %}{% endfor %}
-  <span><span id="map-pts">{{ punti.n }}</span> {{ t('map_points') }}</span>
+  {% if stations %}
+  <label class="nx-row cursor-pointer">
+    <input id="map-show-stations" type="checkbox" class="nx-sw" checked>
+    <span>{{ t('map_charging_stations') }}</span><span class="c">{{ stations|length }}</span>
+  </label>
+  {% endif %}
+  <hr>
   {% endif %}
   {# Both POST and come back through a redirect — see save_map_trip_count/save_map_station_count:
      a GET here would re-save the preference every time someone hit Back or opened a bookmarked
      map URL. #}
-  <form method="post" action="api/settings/map-trip-count" class="ml-auto flex items-center gap-1.5">
+  <form method="post" action="api/settings/map-trip-count" class="nx-row text-slate-400">
     <label for="map-trip-n">{{ t('map_trip_count_label') }}</label>
     <input id="map-trip-n" type="number" name="trips" min="0" step="1" inputmode="numeric"
            value="{{ trips_shown }}" title="{{ t('map_trip_count_hint') }}"
-           onchange="this.value = this.value === '' ? 0 : this.value; this.form.submit()"
-           style="width:52px;background:#0f172a;border:1px solid #334155;border-radius:6px;
-                  color:#e2e8f0;padding:2px 6px;font-size:11px">
+           onchange="this.value = this.value === '' ? 0 : this.value; this.form.submit()">
   </form>
-  <form method="post" action="api/settings/map-station-count" class="flex items-center gap-1.5">
+  <form method="post" action="api/settings/map-station-count" class="nx-row text-slate-400">
     <label for="map-top-n">{{ t('map_station_count_label') }}</label>
     <input id="map-top-n" type="number" name="top_n" min="0" step="1" inputmode="numeric"
            value="{{ stations_top_n }}" title="{{ t('map_station_count_hint') }}"
-           onchange="this.value = this.value === '' ? 0 : this.value; this.form.submit()"
-           style="width:52px;background:#0f172a;border:1px solid #334155;border-radius:6px;
-                  color:#e2e8f0;padding:2px 6px;font-size:11px">
+           onchange="this.value = this.value === '' ? 0 : this.value; this.form.submit()">
   </form>
 </div>
+</div>
+{% if track %}
+<script>
+  // Fork: routes and stations get a switch too. Only the places' choice is remembered (#315's key);
+  // the other two are a look at the map, not a preference.
+  function nxLayerSwitch(id, layer) {
+    const box = document.getElementById(id);
+    if (!box) return box;
+    box.addEventListener('change', function () { if (this.checked) layer.addTo(map); else map.removeLayer(layer); });
+    return box;
+  }
+  nxLayerSwitch('map-show-routes', routesLayer);
+  nxLayerSwitch('map-show-stations', stationsLayer);
+</script>
+{% endif %}
 {% if track and places %}
 <script>
   const placesToggle = document.getElementById('map-show-places');

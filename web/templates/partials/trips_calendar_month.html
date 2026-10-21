@@ -3,13 +3,14 @@
    hx-swap="outerHTML", so navigating months also resets the day-drawer below. Day cells with
    trips instead target only #trips-day-drawer — clicking a day never re-fetches the grid. #}
 <div id="trips-calendar-month" data-cal-month="{{ '' if (year == today.year and month == today.month) else '%d-%02d'|format(year, month) }}">
-  <div class="flex items-center justify-between mb-4">
+  {# Fork (Notturno): ◀ month ▶ on the left, the month's totals on the right of the same row. #}
+  <div class="flex items-center gap-3 mb-4 flex-wrap">
     <button type="button" title="{{ t('charges_calendar_prev') }}"
             hx-get="api/trips/calendar?year={{ prev_year }}&month={{ prev_month }}"
             hx-target="#trips-calendar-month" hx-swap="outerHTML"
-            class="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-600 text-slate-300 hover:border-brand hover:text-white transition-colors">◀</button>
-    <div class="text-center">
-      <div class="text-white font-bold text-lg leading-tight">{{ month_label }}</div>
+            class="w-8 h-8 flex items-center justify-center rounded-[9px] border border-slate-700 text-slate-300 hover:border-brand hover:text-brand transition-colors">‹</button>
+    <div class="text-center min-w-[9.5rem]">
+      <div class="text-white font-medium text-xl leading-tight">{{ month_label }}</div>
       {% if not (year == today.year and month == today.month) %}
       <button type="button"
               hx-get="api/trips/calendar"
@@ -20,15 +21,14 @@
     <button type="button" title="{{ t('charges_calendar_next') }}"
             hx-get="api/trips/calendar?year={{ next_year }}&month={{ next_month }}"
             hx-target="#trips-calendar-month" hx-swap="outerHTML"
-            class="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-600 text-slate-300 hover:border-brand hover:text-white transition-colors">▶</button>
-  </div>
+            class="w-8 h-8 flex items-center justify-center rounded-[9px] border border-slate-700 text-slate-300 hover:border-brand hover:text-brand transition-colors">›</button>
 
   {% if total.count %}
-  <div class="flex items-center justify-center gap-4 text-sm mb-4 flex-wrap">
+  <div class="nx-month-tot flex items-center justify-end gap-x-4 gap-y-1 text-sm flex-wrap sm:ml-auto">
     {% set main_count = total.count - (total.cloud_zero_count or 0) %}
     <span class="text-slate-400">{{ main_count }} {{ t('trip_singular') if main_count == 1 else t('trips_plural') }}</span>
     {% if total.cloud_zero_count %}<span class="text-slate-500">+ {{ total.cloud_zero_count }} {{ t('cloud_zero_segments') }}</span>{% endif %}
-    <span class="text-white font-semibold" tabindex="0" data-tip="{{ t('distance') }}">{{ total.km | dist(1) }}</span>
+    <span class="text-white font-gauge text-lg font-medium" tabindex="0" data-tip="{{ t('distance') }}">{{ total.km | dist(1) }}</span>
     {# On a range-extender: the SAME kilometres the litres beside it are divided by. `avg_eff` is
        the efficiency the car MEASURED, and Mate stores none for a generator trip — so it covers the
        battery-driven half of the month while the L/100 km covers all of it. Two figures ending in
@@ -36,7 +36,7 @@
        Trips header, beta #24). Neutral colour: the good/amber/bad thresholds judge how efficiently
        the BATTERY drove you, which is not what this answers. A BEV keeps the measured pill. #}
     {% set eff_all = total.kwh_100km if is_reev else None %}
-    {% if eff_all %}<span class="eff-pill" style="color:#38bdf8" tabindex="0" data-tip="{{ t('avg_efficiency') }}">{{ eff_all | eff }}</span>
+    {% if eff_all %}<span class="eff-pill" style="color:#4FD8FF" tabindex="0" data-tip="{{ t('avg_efficiency') }}">{{ eff_all | eff }}</span>
     {# …and WHICH kilometres it speaks for. getEC is not on every trip, so since v3.8.3 this figure
        divides by the distance it was measured over — while the litres beside it divide by all of
        them. Two "per 100 km" one line apart on different distances is exactly the shape of beta #11
@@ -54,11 +54,12 @@
        it — @michapr (beta #11) had the litres on each trip and nothing at all where the month is
        summed up. Only when there is fuel to show, so an all-electric month says nothing. #}
     {% if is_reev and total.fuel_l %}
-    <span class="text-amber-400 font-semibold" tabindex="0" data-tip="{{ t('trips_fuel_hint') }}">⛽ {{ total.fuel_l | nice }} L{% if total.fuel_l_100km %} · {{ total.fuel_l_100km | nice }} L/100km{% endif %}</span>
+    <span class="text-fuel font-semibold" tabindex="0" data-tip="{{ t('trips_fuel_hint') }}">⛽ {{ total.fuel_l | nice }} L{% if total.fuel_l_100km %} · {{ total.fuel_l_100km | nice }} L/100km{% endif %}</span>
     {% endif %}
-    {% if total.cost %}<span class="text-slate-300 font-semibold" tabindex="0" data-tip="{{ t('cost') }}">{{ total.cost | money }}</span>{% endif %}
+    {% if total.cost %}<span class="text-white font-gauge text-lg font-medium" tabindex="0" data-tip="{{ t('cost') }}">{{ total.cost | money }}</span>{% endif %}
   </div>
   {% endif %}
+  </div>
 
   {# What this month's totals do NOT contain. It lives INSIDE the calendar fragment on purpose: the
      month buttons swap this whole block, so the figure follows the month you are looking at. Put
@@ -80,12 +81,16 @@
   </div>
   {% endif %}
 
-  <div class="grid grid-cols-7 gap-1 sm:gap-1.5 lg:gap-2 text-center text-[10px] sm:text-xs lg:text-sm text-slate-500 mb-1">
+  <div class="grid grid-cols-7 gap-1 sm:gap-1.5 text-left pl-2 text-[10px] sm:text-[11px] uppercase tracking-[.1em] text-slate-500 mb-1.5">
     {% for wd in weekday_abbrs %}<div>{{ wd }}</div>{% endfor %}
   </div>
 
   {# data-range: base.html's calendar script lets this grid open several days at once #}
-  <div class="grid grid-cols-7 gap-1 sm:gap-1.5 lg:gap-2" data-range>
+  {# Heat: a day glows with its kilometres against the month's longest day — square root, so a
+     242 km trip does not leave every ordinary day dark. #}
+  {% set heat = namespace(mx=0) %}
+  {% for week in weeks %}{% for cell in week %}{% if cell is not none and cell.count and (cell.km or 0) > heat.mx %}{% set heat.mx = cell.km %}{% endif %}{% endfor %}{% endfor %}
+  <div class="nx-cal grid grid-cols-7 gap-1 sm:gap-1.5" data-range>
     {% for week in weeks %}
       {% for cell in week %}
         {% if cell is none %}
@@ -96,20 +101,24 @@
            or a reload that carried the choice back (see the calendar script in base.html) #}
         {% set is_open = (open_day is defined and open_day and open_day <= cell.day <= open_to) %}
         {% if cell.count %}
+        {% set h = (((cell.km or 0) / heat.mx) ** 0.5) if heat.mx else 0 %}
         <button type="button"{% if is_open %} data-selected{% endif %} data-day="{{ cell.day }}"
                 hx-get="api/trips/calendar/day?year={{ year }}&month={{ month }}&day={{ cell.day }}"
                 hx-target="#trips-day-drawer" hx-swap="innerHTML" hx-sync="#trips-day-drawer:replace"
-                class="cal-day aspect-square rounded-lg border flex flex-col items-center justify-center gap-0.5 lg:gap-1 cursor-pointer hover:border-brand transition-colors"
-                style="background:#0f172a;border-color:{% if is_today %}#fbbf24{% else %}#1e293b{% endif %}">
-          <span class="text-[11px] sm:text-sm lg:text-lg {% if is_today %}text-yellow-400 font-bold{% else %}text-slate-300{% endif %}">{{ cell.day }}</span>
-          <span class="text-[9px] sm:text-[11px] lg:text-sm text-white font-semibold leading-none">{{ cell.km | dist(0) }}</span>
-          <span class="text-[8px] sm:text-[10px] lg:text-xs text-slate-500 leading-none">{{ cell.count - (cell.cloud_zero_count or 0) }}🚗</span>
-          {% if cell.cloud_zero_count %}<span class="text-[8px] sm:text-[10px] text-slate-500" title="{{ t('cloud_zero_segments') }}">+{{ cell.cloud_zero_count }} cloud</span>{% endif %}
+                class="cal-day aspect-square nx-day rounded-[10px] border relative flex flex-col items-start justify-between p-1 sm:p-2 text-left cursor-pointer transition-colors"
+                style="--h:{{ '%.2f'|format(h) }};{% if is_today %}border-style:dashed;border-color:rgba(79,216,255,.6){% endif %}">
+          {% set n_trips = cell.count - (cell.cloud_zero_count or 0) %}
+          <span class="w-full flex items-start justify-between gap-1">
+            <span class="text-[10px] sm:text-xs {% if is_today %}text-brand font-semibold{% else %}text-slate-400{% endif %}">{{ cell.day }}</span>
+            <span class="nx-dots" title="{{ n_trips }} {{ t('trip_singular') if n_trips == 1 else t('trips_plural') }}">{% for _ in range([n_trips, 4]|min) %}<i></i>{% endfor %}{% if n_trips > 4 %}<b>+</b>{% endif %}</span>
+          </span>
+          <span class="nx-day-km leading-none">{{ cell.km | dist(0) }}</span>
+          {% if cell.cloud_zero_count %}<span class="absolute right-1.5 bottom-1 text-[8px] sm:text-[10px] text-slate-500" title="{{ t('cloud_zero_segments') }}">+{{ cell.cloud_zero_count }} cloud</span>{% endif %}
         </button>
         {% else %}
-        <div class="aspect-square rounded-lg flex items-center justify-center"
-             style="background:#0a1220;border:1px solid {% if is_today %}#fbbf2455{% else %}#111c2e{% endif %}">
-          <span class="text-[11px] sm:text-sm lg:text-lg {% if is_today %}text-yellow-400 font-bold{% else %}text-slate-600{% endif %}">{{ cell.day }}</span>
+        <div class="aspect-square nx-day rounded-[10px] flex items-start p-1 sm:p-2"
+             style="background:#070B11;border:1px {% if is_today %}dashed rgba(79,216,255,.6){% else %}solid #111a25{% endif %}">
+          <span class="text-[10px] sm:text-xs {% if is_today %}text-brand font-semibold{% else %}text-slate-600{% endif %}">{{ cell.day }}</span>
         </div>
         {% endif %}
         {% endif %}

@@ -35,7 +35,7 @@
     {% if trip.date_label %}
     <div class="text-[11px] text-slate-500 leading-tight">{{ trip.date_label }}</div>
     {% endif %}
-    <div class="text-white text-sm font-medium">
+    <div class="trip-time">
       {{ trip.started_at[11:16] if trip.started_at else '—' }}
       <span class="text-slate-500 font-normal text-xs ml-1 whitespace-nowrap">
         → {{ trip.ended_at|end_time(trip.started_at) if trip.ended_at else '' }}
@@ -63,7 +63,7 @@
   </div>
 
   <div class="text-right flex-shrink-0" style="min-width:84px">
-    <div class="text-white text-sm font-bold">{{ (trip.distance_km or 0) | dist(1) }}</div>
+    <div class="trip-km">{{ (trip.distance_km or 0) | dist(1) }}</div>
     {% if trip.cloud_zero_segment and trip.ec_kwh is not none %}
     <div class="text-slate-400 text-[11px]">{{ trip.ec_kwh|nice }} kWh</div>
     {% endif %}
