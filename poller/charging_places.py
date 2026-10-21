@@ -36,22 +36,30 @@ def distance_m(lat, lon, other_lat, other_lon):
     return 6371000 * 2 * math.asin(math.sqrt(min(1, max(0, h))))
 
 
+# Fork: the connector picks which places can match. A DC session only matches a place typed DC/HPC
+# (a public rapid charger you use often), an AC session only the others — so a rapid charger inside
+# the home zone is never priced at the home rate, and one site with both sockets can be two places.
+DC_TYPES = ("FAST", "HPC")
+
+
 def match(db, vehicle_id, data, now=None):
-    # Unknown or stale position, moving car, unknown/DC connector: leave it to the owner.
+    # Unknown or stale position, moving car, unknown connector: leave it to the owner.
     try:
         lat, lon = float(data.latitude), float(data.longitude)
         age = (time.time() if now is None else now) - float(data.timestamp_ms)/1000
+        dc = getattr(data, 'dc_gun_connected', None)
         if (not all(math.isfinite(x) for x in (lat, lon, age))
                 or not -90 <= lat <= 90 or not -180 <= lon <= 180
                 or (lat == 0 and lon == 0) or not 0 <= age <= 120
                 or data.gear != 'P' or data.speed_kmh != 0
-                or getattr(data, 'dc_gun_connected', None) is not False):
+                or not isinstance(dc, bool)):
             return None
     except (AttributeError, TypeError, ValueError):
         return None
     hits = [dict(p) for p in db.execute(
         'SELECT * FROM charging_places WHERE vehicle_id=? AND enabled=1', (vehicle_id,))
-        if distance_m(lat, lon, p['latitude'], p['longitude']) <= p['radius_m']]
+        if (p['charge_type'] in DC_TYPES) == dc
+        and distance_m(lat, lon, p['latitude'], p['longitude']) <= p['radius_m']]
     return hits[0] if len(hits) == 1 else None
 
 
