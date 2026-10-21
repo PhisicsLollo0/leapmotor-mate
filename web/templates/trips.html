@@ -14,7 +14,7 @@
 {% block content %}
 <div class="mb-6 flex items-start justify-between gap-4">
   <div>
-    <h1 class="text-2xl font-bold text-white">{{ t('trips_title') }}</h1>
+    <h1 class="text-2xl font-semibold text-white">{{ t('trips_title') }}</h1>
     <p class="text-slate-400 text-sm mt-1">{{ total }} {{ t('recorded_trips') }}</p>
   </div>
   {% if total %}
@@ -30,7 +30,7 @@
 
 {% if summary and summary.count %}
 <!-- ── Hero summary ─────────────────────────────────────────────── -->
-<div class="hero-grid mb-8">
+<div class="hero-grid mb-4">
   <div class="hero-tile t-dist">
     <div class="hero-ico">🛣️</div>
     <div>
@@ -42,7 +42,7 @@
     <div class="hero-ico">🗺️</div>
     <div>
       <div class="hero-val">{{ summary.count - (summary.cloud_zero_count or 0) }}</div>
-      {% if summary.cloud_zero_count %}<div class="text-xs text-slate-400">+ {{ summary.cloud_zero_count }} {{ t('cloud_zero_segments') }}</div>{% endif %}
+      {% if summary.cloud_zero_count %}<div class="text-xs text-slate-500">+ {{ summary.cloud_zero_count }} {{ t('cloud_zero_segments') }}</div>{% endif %}
       <div class="hero-label">{{ t('total_trips') }}</div>
     </div>
   </div>
@@ -60,7 +60,7 @@
          BATTERY drove you, which is not what this number answers. A BEV is untouched. #}
       {% set eff_all = reev_total.kwh_100km if (is_reev and reev_total) else None %}
       {% if eff_all %}
-      <div class="hero-val" style="color:#38bdf8">
+      <div class="hero-val" style="color:#4FD8FF;text-shadow:0 0 14px rgba(79,216,255,.35)">
         {{ eff_val(eff_all)|nice }}<span class="u">{{ eff_unit() }}</span>
       </div>
       {% elif summary.avg_eff %}
@@ -79,7 +79,7 @@
   <div class="hero-tile t-regen">
     <div class="hero-ico">⛽</div>
     <div>
-      <div class="hero-val" style="color:#fbbf24">{{ reev_summary.total_l|nice }}<span class="u">L</span></div>
+      <div class="hero-val" style="color:#FFB13D">{{ reev_summary.total_l|nice }}<span class="u">L</span></div>
       <div class="hero-label">{{ t('report_fuel_burned') }}{% if reev_summary.avg_l_100km %} · {{ reev_summary.avg_l_100km|nice }} L/100km{% endif %}</div>
     </div>
   </div>
@@ -98,31 +98,31 @@
 
 {% if ec_periods and summary and summary.count %}
 <!-- Consumo totale di guida (cloud getEC, da sempre): Totale + Guida/AC/Altro che riconciliano fra loro -->
-<div class="card mb-8" hx-get="api/energy-period?period=alltime" hx-trigger="load" hx-swap="innerHTML">
+<div class="card mb-4" hx-get="api/energy-period?period=alltime" hx-trigger="load" hx-swap="innerHTML">
   <div class="text-slate-500 text-sm text-center py-4">···</div>
 </div>
 {% endif %}
 
 {% if total %}
-<!-- Search + advanced filters -->
-<div class="card mb-6">
+<!-- Search + advanced filters, and the year jump on the same row (fork, Notturno) -->
+<div class="mb-4 flex flex-wrap items-start gap-2">
   <form id="trips-search-form"
         hx-get="api/trips/search"
         hx-target="#trips-calendar-month-wrap" hx-swap="innerHTML"
         hx-trigger="keyup changed delay:400ms from:#trips-search-q, change"
-        class="space-y-3">
+        class="space-y-2 flex-1 min-w-[16rem]">
     <input type="hidden" name="year" value="{{ cal_year }}">
     <input type="hidden" name="month" value="{{ cal_month }}">
     <div class="flex flex-col sm:flex-row sm:items-center gap-2">
       <input id="trips-search-q" type="text" name="q" autocomplete="off"
              placeholder="🔍 {{ t('trips_search_placeholder') }}"
-             class="flex-1 min-w-0 bg-slate-800 border border-slate-600 text-white text-sm rounded-lg px-3 py-2 focus:outline-none focus:border-brand">
+             class="flex-1 min-w-0 bg-slate-900 border border-slate-700 text-white text-sm rounded-[10px] px-3.5 py-2.5 focus:outline-none focus:border-brand">
       <button type="button" onclick="document.getElementById('trips-adv-filters').classList.toggle('hidden')"
-              class="text-xs text-slate-400 hover:text-white border border-slate-600 rounded-lg px-3 py-2 whitespace-nowrap w-full sm:w-auto">
+              class="text-sm text-slate-300 hover:text-white bg-slate-900 border border-slate-700 rounded-[10px] px-3.5 py-2.5 whitespace-nowrap w-full sm:w-auto hover:border-brand/50">
         ⚙ {{ t('charges_search_advanced') }}
       </button>
     </div>
-    <div id="trips-adv-filters" class="hidden grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-2 border-t border-slate-700/60">
+    <div id="trips-adv-filters" class="hidden grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 p-2 rounded-[10px] border border-slate-700 bg-slate-900">
       <select name="drive_mode" class="bg-slate-800 border border-slate-600 text-white text-xs rounded-lg px-2 py-1.5">
         <option value="">{{ t('trips_search_all_modes') }}</option>
         <option value="eco">{{ t('mode_eco') }}</option>
@@ -143,21 +143,21 @@
              class="bg-slate-800 border border-slate-600 text-white text-xs rounded-lg px-2 py-1.5">
     </div>
   </form>
-</div>
 
 {% if cal_years and cal_years|length > 1 %}
 <!-- Year jump — only years with actual trips, so it never lists empty years -->
-<div class="flex items-center gap-2 flex-wrap mb-4">
+<div class="flex items-center gap-2 flex-wrap">
   {% for y in cal_years %}
   <button type="button"
           hx-get="api/trips/calendar?year={{ y }}&month={{ cal_month }}"
           hx-target="#trips-calendar-month-wrap" hx-swap="innerHTML"
-          class="px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-600 text-slate-300 hover:border-brand hover:text-white transition-colors">
+          class="px-3.5 py-2.5 rounded-[10px] text-sm bg-slate-900 border border-slate-700 text-slate-300 hover:border-brand hover:text-brand transition-colors">
     {{ y }}
   </button>
   {% endfor %}
 </div>
 {% endif %}
+</div>
 
 <!-- 🔗 is NOT here any more: merging moved into the day drawer's header, beside the date
      (#204 @riri19). A page-level button replaced the whole calendar with a flat all-history
@@ -192,9 +192,9 @@ if (HIGHLIGHT) {
       for (let parent = row.parentElement; parent; parent = parent.parentElement) {
         if (parent.tagName === 'DETAILS') parent.open = true;
       }
-      row.style.background = '#1a2e1a';
-      row.style.border     = '1px solid #22c55e55';
-      row.style.boxShadow  = 'inset 3px 0 0 #22c55e';
+      row.style.background = 'rgba(79,216,255,.06)';
+      row.style.border     = '1px solid rgba(79,216,255,.4)';
+      row.style.boxShadow  = '0 0 16px rgba(79,216,255,.15)';
       requestAnimationFrame(() => row.scrollIntoView({ behavior: 'smooth', block: 'center' }));
       document.body.removeEventListener('htmx:afterSwap', onSwap);
     }

@@ -10,7 +10,7 @@
 {% elif trips %}
 <div class="mb-3 flex items-center justify-between flex-wrap gap-2">
   <div class="flex items-center gap-2 flex-wrap">
-    <span class="text-white font-semibold">{{ day_label }}</span>
+    <span class="text-white text-lg font-medium">{{ day_label }}</span>
     {% include "partials/_trips_day_count.html" %}
     {# 🔗 lives HERE, beside the date, and only exists once a day is open: merging is something you
        do to two trips of one day, and this heading is the only place on the page that says which
