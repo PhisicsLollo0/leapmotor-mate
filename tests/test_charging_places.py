@@ -58,7 +58,8 @@ def test_auto_snapshot_is_per_vehicle_and_editing_place_does_not_change_it(store
 @pytest.mark.parametrize('change',[{'latitude':None},{'longitude':None},{'latitude':0,'longitude':0},
  {'latitude':float('nan')},{'longitude':181},{'timestamp_ms':0},
  {'timestamp_ms':int((time.time()-600)*1000)},{'timestamp_ms':int((time.time()+600)*1000)},
- {'gear':'D'},{'speed_kmh':1},{'dc_gun_connected':None},{'dc_gun_connected':True},{'latitude':46}])
+ {'gear':'D'},{'speed_kmh':1},{'dc_gun_connected':None},{'dc_gun_connected':1},{'dc_gun_connected':True},
+ {'latitude':46}])
 def test_unreliable_or_outside_position_never_matches(store,change):
     place(store)
     assert P.match(store._conn,1,frame(**change)) is None
@@ -69,6 +70,35 @@ def test_overlapping_and_disabled_zones(store):
     assert P.match(store._conn,1,frame()) is None
     store._conn.execute('UPDATE charging_places SET enabled=0 WHERE id=?',(b,))
     assert P.match(store._conn,1,frame())['id']==a
+
+
+# Fork: the connector picks the place. A DC place matches only DC sessions, every other type only
+# AC ones — so one site with both sockets is two places, and a rapid charger inside the home zone
+# never gets the home rate.
+def typed_place(store, charge_type, rate):
+    pid=place(store,name=charge_type,rate=rate)
+    store._conn.execute('UPDATE charging_places SET charge_type=? WHERE id=?',(charge_type,pid));store._conn.commit()
+    return pid
+
+
+@pytest.mark.parametrize('dc_type',['FAST','HPC'])
+def test_a_dc_place_matches_dc_sessions_only(store,dc_type):
+    pid=typed_place(store,dc_type,.38)
+    assert P.match(store._conn,1,frame(dc_gun_connected=True))['id']==pid
+    assert P.match(store._conn,1,frame(dc_gun_connected=False)) is None
+
+
+def test_one_site_with_both_sockets_picks_the_place_by_connector(store):
+    dc=typed_place(store,'FAST',.38);ac=typed_place(store,'AC',.34)
+    assert P.match(store._conn,1,frame(dc_gun_connected=True))['id']==dc
+    assert P.match(store._conn,1,frame(dc_gun_connected=False))['id']==ac
+    cid=store.create_charge(1,frame(dc_gun_connected=True))
+    assert (row(store,cid)['charging_place_rate'],row(store,cid)['location_type'])==(.38,'FAST')
+
+
+def test_a_rapid_charger_inside_the_home_zone_does_not_get_the_home_rate(store):
+    place(store)
+    assert P.match(store._conn,1,frame(dc_gun_connected=True)) is None
 
 
 def test_reconstructed_charge_does_not_use_current_position(store):
