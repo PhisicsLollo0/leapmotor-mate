@@ -60,6 +60,39 @@ def test_a_generator_trip_counts_too_instead_of_being_skipped(reev):
     assert out["total_km"] == 200.0
 
 
+def _metered(db, ec_kwh, stable=1):
+    """Give the last trip the car's own metered kWh (getEC), as the poller does once it locks."""
+    db._conn.execute("UPDATE trips SET ec_kwh=?, ec_stable=? WHERE id=(SELECT MAX(id) FROM trips)",
+                     (ec_kwh, stable))
+    db._conn.commit()
+
+
+def test_an_electric_trip_with_a_metered_figure_counts_the_meter_not_the_soc_drop(reev):
+    """Fork: the two short drives that showed 13.3 and 7.5 kWh/100km on their own cards and 15.3 as
+    their average — the average now adds the same metered kWh the cards (and the cloud panel) use."""
+    _trip(reev, 3.0, 71.5, 68.5, day=1)          # SoC: 0.85 kWh on this 28.4 pack
+    _metered(reev, 0.4)
+    _trip(reev, 4.0, 68.4, 65.7, day=2)
+    _metered(reev, 0.3)
+    out = db_reader.reev_total_consumption()
+    assert out["total_kwh"] == 0.7
+    assert out["kwh_100km"] == 10.0
+
+
+def test_a_generator_trip_keeps_the_soc_drop_even_when_metered(reev):
+    """The meter counts what the petrol put back into the pack; billing it beside the litres would
+    pay for that fuel twice. Only the net drop belongs on the electric side."""
+    _trip(reev, 200.0, 50.0, 45.0, fuel_from=60.0, fuel_to=40.0)
+    _metered(reev, 30.0)
+    assert db_reader.reev_total_consumption()["total_kwh"] == 1.4
+
+
+def test_a_metered_figure_that_is_not_locked_yet_is_not_used(reev):
+    _trip(reev, 100.0, 80.0, 40.0)
+    _metered(reev, 9.0, stable=0)
+    assert db_reader.reev_total_consumption()["total_kwh"] == 11.4
+
+
 def test_a_refuel_is_a_purchase_not_a_negative_consumption(reev):
     """Found by running this over a real range-extender history: one 6% → 76% fill-up turned
     22 litres genuinely burned into MINUS 23. A tank only goes up at a pump, so a trip that
