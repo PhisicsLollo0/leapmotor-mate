@@ -6330,8 +6330,19 @@ def reev_total_consumption() -> Optional[dict]:
     db = _get()
     try:
         row = db.execute(
+            # Fork: the battery side per trip. Where the tank fell (the generator ran — the same
+            # test the litres below use) the SoC drop, as before: it is the grid energy that trip
+            # really spent, and the car's meter would bill again what the petrol put in. Where it
+            # did not, the car's own metered kWh — the figure each trip card shows and the cloud's
+            # «Consumption · all trips» panel adds up — because on a pure-electric drive the SoC
+            # drop only adds rounding and standing losses: two short drives showed 13.3 and 7.5
+            # kWh/100km on their cards and 15.3 as their average on the same page.
             """SELECT SUM(distance_km) AS km,
-                      SUM((start_soc - end_soc) / 100.0 * ?) AS kwh,
+                      SUM(CASE WHEN NOT (COALESCE(fuel_start_l > fuel_end_l, 0)
+                                         OR COALESCE(fuel_start_pct > fuel_end_pct, 0))
+                                AND ec_kwh IS NOT NULL AND ec_stable = 1
+                               THEN ec_kwh
+                               ELSE (start_soc - end_soc) / 100.0 * ? END) AS kwh,
                       -- Only tank drops. A trip that ENDS fuller than it started is a refuel,
                       -- and a refuel is a purchase, not negative consumption: counted signed, one
                       -- fill-up erases weeks of real burning. Found by running this over a real
