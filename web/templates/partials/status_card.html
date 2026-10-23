@@ -20,6 +20,10 @@
   {# The dial: on a range-extender the battery fills the left half and the tank the right, each
      from the bottom up; on a battery-only car the battery takes the whole arc. Ticks are a dash
      pattern, the fill is the same ticks seen through a mask cut to the level (pathLength=100). #}
+  {# Fork: the dial and its centre figure in a box of their own. The centre used to be placed in % of
+     the whole gauge block — legs included — so a range-extender's longer fuel column pushed it down
+     onto the Battery / Fuel level labels. #}
+  <div class="nx-dialbox">
   <svg viewBox="0 0 360 205" class="nx-dial" aria-hidden="true">
     <defs>
       {% if reev %}
@@ -49,6 +53,7 @@
     <b class="font-gauge">{{ dist_val(status.range_km)|int }}</b>
     <span class="stat-label">{{ dist_unit() }} · {{ t('range') }}</span>
     {% endif %}
+  </div>
   </div>
 
   <div class="nx-legs">
@@ -89,6 +94,16 @@
         {# The car keeps its litre counter to itself: the % against the model's tank, as the Fuel page
            does — marked ≈, because it is the float gauge's figure and not the car's own count. #}
         <div title="{{ reev_tank_l() | dec(1) }} L">≈ <b>{{ (status.fuel_level_pct / 100 * reev_tank_l()) | dec(1) }} L</b></div>
+        {% endif %}
+        {# Fork: the fuel side mirrors the battery's — what a full tank would cover (today's fuel range
+           scaled up from today's level, the car's own consumption estimate), and the €/L of the
+           petrol in the tank, the rate engine-on trips are costed at. Absent rather than "—" until
+           there is something to show, like the battery's price. #}
+        {% if status.get('fuel_range_km') and status.fuel_level_pct and status.fuel_level_pct >= 5 %}
+        <div>{{ t('range_est_100') }}: <b>{{ dist_val(status.fuel_range_km / status.fuel_level_pct * 100)|int }}</b> {{ dist_unit() }}</div>
+        {% endif %}
+        {% if fuel_price %}
+        <div title="{{ t('fuel_blended_price_help') }}">{{ t('fuel_blended_price') }}: <b>{{ fuel_price | price3 }}</b> {{ currency.symbol }}/L</div>
         {% endif %}
       </div>
     </div>
