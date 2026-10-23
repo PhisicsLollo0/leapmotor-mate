@@ -1069,6 +1069,8 @@
     "blended_price": "Gem. prijs in de batterij",
     "fuel_blended_price": "Gem. prijs in de tank",
     "fuel_blended_price_help": "De gewogen gemiddelde prijs van de benzine in de tank: elke geregistreerde tankbeurt telt mee naar verhouding van de toegevoegde liters. Met dit tarief worden de brandstofkosten van elke rit met draaiende motor berekend — tanken verandert het, rijden nooit.",
+    "cabin_climate_on": "Klimaat aan",
+    "cabin_at_target": "Doeltemperatuur bereikt",
     "blended_price_help": "De gewogen gemiddelde prijs van de energie die nu in de batterij zit: elke laadbeurt met een prijs telt naar verhouding van wat hij heeft toegevoegd. Tegen dit tarief worden de kosten van elke rit berekend — laden verandert het, rijden nooit. Bij een laadbeurt die wordt afgerekend op de kilowattuur die de lader heeft afgegeven — de meter van de wallbox, of het zelf ingevoerde getal van de laadzuil — ligt het boven het tarief dat in Laadprijzen is ingesteld: het verschil is wat de boordlader in warmte heeft omgezet voordat de energie de batterij bereikte.",
     "rate_basis_help": "Door welke kilowattuur dit tarief de kosten deelt: die de lader heeft afgegeven (de meter van de wallbox, of het zelf ingevoerde getal van de laadzuil) of — als geen van beide bestaat — die de batterij hebben bereikt. De gemiddelde prijs in de batterij op het overzicht deelt altijd door het batterijgetal, dus bij een laadbeurt met verlies verschillen de twee.",
     "car_data_dc": "gegevens van de auto (DC)",

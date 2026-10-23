@@ -416,6 +416,8 @@ templates.env.globals.update(
     # context, and a value threaded through `_ctx` would reach the page and vanish from the rest.
     # A callable, so a sensor that starts working un-hides itself without a restart.
     absent_temps=db_reader.never_reported_temps,
+    # Fork: where the cabin is heading (climate on → ETA to the target). A callable, per render.
+    cabin_trend=db_reader.cabin_temp_trend,
     # Fork: the tank size the Fuel page already falls back on, so the Overview dial can say the litres
     # (≈) when the car does not count them itself (3263). A callable: the model is read when drawn.
     reev_tank_l=db_reader.reev_tank_l,

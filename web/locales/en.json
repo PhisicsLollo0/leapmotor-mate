@@ -1069,6 +1069,8 @@
     "blended_price": "Avg price in battery",
     "fuel_blended_price": "Avg price in tank",
     "fuel_blended_price_help": "The weighted average price of the petrol in the tank: every logged refuel counts in proportion to the litres it added. It is the rate each engine-on trip's fuel cost is worked out at — refuelling moves it, driving never does.",
+    "cabin_climate_on": "Climate on",
+    "cabin_at_target": "At target",
     "blended_price_help": "The weighted average price of the energy currently in the battery: every priced charge counts in proportion to the charge it added. It is the rate each trip's cost is worked out at — charging moves it, driving never does. On a charge billed on the kilowatt-hours the charger delivered — a wallbox meter, or the column's own figure typed in — it comes out above the tariff set in Charge Prices: the difference is what the on-board charger turned into heat before the energy reached the battery.",
     "rate_basis_help": "Which kilowatt-hours this rate divides the cost by: the ones the charger delivered (a wallbox meter, or the column's own figure typed in), or — when neither exists — the ones that reached the battery. The Overview's average price in the battery always divides by the battery figure, so on a charge with losses the two differ.",
     "car_data_dc": "car data (DC)",

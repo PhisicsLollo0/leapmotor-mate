@@ -138,13 +138,25 @@
   {% if 'outside_temp' not in absent %}
   <div class="nx-tile">
     <div class="stat-label">{{ t('outside_temp_label') }} <span class="cursor-help normal-case" tabindex="0" data-tip="{{ t('outside_temp_title') }}">ⓘ</span></div>
-    <div class="nx-tile-val font-gauge">{{ status.outside_temp | temp(0) if status.outside_temp is not none else '—' }}</div>
+    <div class="nx-tile-val font-gauge">{{ status.outside_temp | temp(1) if status.outside_temp is not none else '—' }}</div>
   </div>
   {% endif %}
   {% if 'inside_temp' not in absent %}
   <div class="nx-tile">
     <div class="stat-label">{{ t('inside_temp') }}</div>
-    <div class="nx-tile-val font-gauge">{{ status.inside_temp | temp(0) if status.inside_temp is not none else '—' }}</div>
+    <div class="nx-tile-val font-gauge">{{ status.inside_temp | temp(1) if status.inside_temp is not none else '—' }}</div>
+    {# Fork: the trend under the reading — climate on: heading to the target (and a rough ETA);
+       off: a drift of ≥ 1 °C in the last half hour. Nothing when the car is asleep or steady. #}
+    {% set tr = cabin_trend() %}
+    {% if tr and tr.on %}
+    <div class="nx-tile-sub" style="color:var(--nx-ev)">
+      {% if tr.reached %}{{ t('cabin_at_target') }}
+      {% else %}{{ '↑' if tr.rate and tr.rate > 0 else '↓' if tr.rate and tr.rate < 0 else '•' }} {{ t('cabin_climate_on') }}{% if tr.target is not none %} → {{ tr.target | temp(0) }}{% endif %}{% if tr.eta_min is not none %} · ~{{ [tr.eta_min, 1] | max }} min{% endif %}
+      {% endif %}
+    </div>
+    {% elif tr %}
+    <div class="nx-tile-sub">{{ '↑' if tr.delta > 0 else '↓' }} {{ '%+.1f' | format(tr.delta * 1.8 if unit_system() == 'imperial_us' else tr.delta) }}° · {{ tr.minutes }} min</div>
+    {% endif %}
   </div>
   {% endif %}
   {% if 'ac_target' not in absent %}

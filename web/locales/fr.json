@@ -1069,6 +1069,8 @@
     "blended_price": "Prix moyen dans la batterie",
     "fuel_blended_price": "Prix moyen dans le réservoir",
     "fuel_blended_price_help": "Le prix moyen pondéré de l'essence dans le réservoir : chaque plein enregistré compte en proportion des litres ajoutés. C'est le tarif utilisé pour le coût en carburant de chaque trajet moteur allumé — faire le plein le modifie, rouler jamais.",
+    "cabin_climate_on": "Clim allumée",
+    "cabin_at_target": "Température atteinte",
     "blended_price_help": "Le prix moyen pondéré de l'énergie actuellement dans la batterie : chaque charge tarifée compte proportionnellement à ce qu'elle a ajouté. C'est le tarif utilisé pour calculer le coût de chaque trajet — recharger le déplace, rouler jamais. Sur une recharge facturée sur les kilowattheures délivrés par la borne — le compteur de la wallbox, ou le chiffre de la borne saisi à la main — il est supérieur au tarif défini dans Prix de recharge : la différence est ce que le chargeur embarqué a transformé en chaleur avant que l'énergie n'atteigne la batterie.",
     "rate_basis_help": "Par quels kilowattheures ce tarif divise le coût : ceux délivrés par la borne (le compteur de la wallbox, ou le chiffre de la borne saisi à la main) ou — à défaut des deux — ceux arrivés dans la batterie. Le prix moyen dans la batterie de l'aperçu divise toujours par le chiffre de la batterie : sur une recharge avec pertes, les deux diffèrent donc.",
     "car_data_dc": "données voiture (DC)",

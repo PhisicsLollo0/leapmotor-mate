@@ -967,6 +967,77 @@ def never_reported_temps() -> set:
     return {k for k in _OPTIONAL_TEMPS if not int(row[k] or 0)}
 
 
+# Fork: cabin trend windows. Polls land every ~30 s; the sensor moves in 0.5 °C steps.
+_CABIN_STALE_S = 300          # newest poll older than this → the car is asleep, no trend
+_CABIN_ON_WINDOW_S = 360      # climate on: rate over the last 6 min of the run
+_CABIN_ON_MIN_SPAN_S = 120
+_CABIN_OFF_WINDOW_S = 1800    # climate off: drift over the last 30 min
+_CABIN_OFF_MIN_SPAN_S = 600
+
+
+def _cabin_trend(rows, now: datetime) -> Optional[dict]:
+    """Pure core of `cabin_temp_trend`. `rows`: newest first, each with recorded_at, inside_temp,
+    climate_on, climate_target_temp.
+
+    Climate on → {"on", "target", "rate" (°C/min), "eta_min" or None, "reached"}. The rate is taken
+    over the current run only, so the first minutes — when the fan blows cold air and the cabin
+    DROPS — give no ETA instead of a nonsense one. The ETA is linear, so optimistic: the heat pump
+    slows near the target. Climate off → {"on": False, "delta", "minutes"} when the cabin drifted
+    by ≥ 1 °C (two sensor steps, so one flicker is not a trend), else None."""
+    pts = []
+    for r in rows:
+        if r["inside_temp"] is None:
+            continue
+        try:
+            ts = datetime.fromisoformat(r["recorded_at"])
+        except (TypeError, ValueError):
+            continue
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        pts.append((ts, float(r["inside_temp"]), bool(r["climate_on"]), r["climate_target_temp"]))
+    if not pts or (now - pts[0][0]).total_seconds() > _CABIN_STALE_S:
+        return None
+    t0, temp0, on0, target = pts[0]
+    if on0:
+        run = []
+        for p in pts:
+            if not p[2] or (t0 - p[0]).total_seconds() > _CABIN_ON_WINDOW_S:
+                break
+            run.append(p)
+        out = {"on": True, "target": target, "rate": None, "eta_min": None, "reached": False}
+        if target is not None and abs(float(target) - temp0) < 0.5:
+            out["reached"] = True
+            return out
+        span = (t0 - run[-1][0]).total_seconds()
+        if span < _CABIN_ON_MIN_SPAN_S:
+            return out
+        rate = (temp0 - run[-1][1]) / (span / 60)
+        out["rate"] = rate
+        if target is not None and rate and (float(target) - temp0) * rate > 0:
+            eta = (float(target) - temp0) / rate
+            out["eta_min"] = round(eta) if eta <= 60 else None
+        return out
+    win = [p for p in pts if (t0 - p[0]).total_seconds() <= _CABIN_OFF_WINDOW_S]
+    span = (t0 - win[-1][0]).total_seconds()
+    delta = temp0 - win[-1][1]
+    if span < _CABIN_OFF_MIN_SPAN_S or abs(delta) < 1.0:
+        return None
+    return {"on": False, "delta": delta, "minutes": round(span / 60)}
+
+
+def cabin_temp_trend() -> Optional[dict]:
+    """Fork: where the cabin temperature is heading — see `_cabin_trend`. A template global, like
+    `never_reported_temps`, because the status card is rendered by several routes."""
+    try:
+        rows = _get().execute(
+            "SELECT recorded_at, inside_temp, climate_on, climate_target_temp FROM positions "
+            "WHERE vehicle_id = COALESCE(?, vehicle_id) ORDER BY id DESC LIMIT 90",
+            (_current_vehicle_id(),)).fetchall()
+    except sqlite3.Error:
+        return None
+    return _cabin_trend(rows, datetime.now(timezone.utc))
+
+
 def _schedule_vin() -> str:
     """The VIN the charge-window keys of the car on screen are filed under ('' when unknown)."""
     try:
