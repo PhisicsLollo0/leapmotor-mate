@@ -7482,6 +7482,16 @@ def current_blended_price() -> Optional[float]:
     return blended_price_at(_current_vehicle_id(), datetime.now(timezone.utc).isoformat())
 
 
+def current_fuel_price() -> Optional[float]:
+    """Fork: the fuel twin of `current_blended_price` — the €/L of the petrol in the tank right now,
+    i.e. the rate the next engine-on trip's fuel is costed at. None until the first priced refuel.
+    Same two-routes reason for a helper: the Overview and `/api/status-card` both render the card."""
+    vid = _current_vehicle_id()
+    if vid is None:
+        return None
+    return fuel_blended_price_at(vid, datetime.now(timezone.utc).isoformat())
+
+
 def _paid_stock_replay(events, capacity_kwh: float) -> list[dict]:
     """REEV — replay of (priced charges, trip draws) in time order, returning what each draw COST.
 

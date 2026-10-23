@@ -17,9 +17,11 @@
   .nx-track,.nx-fill{fill:none;stroke-width:16;stroke-dasharray:3 5}
   .nx-track{stroke:var(--nx-edge)}
   .nx-fill{filter:drop-shadow(0 0 6px currentColor)}
-  .nx-mid{position:absolute;left:0;right:0;top:27%;text-align:center}
+  /* Fork: placed inside .nx-dialbox (the dial alone), sitting on the dial's foot — see status_card. */
+  .nx-dialbox{position:relative;max-width:400px;margin:0 auto}
+  .nx-mid{position:absolute;left:0;right:0;bottom:2px;text-align:center}
   .nx-mid b{display:block;font-weight:300;font-size:clamp(64px,14vw,96px);line-height:1;color:var(--nx-hi);text-shadow:0 0 24px rgba(120,200,255,.22)}
-  .nx-mid .stat-label{margin-top:4px}
+  .nx-mid .stat-label{display:block;margin:4px auto 0;max-width:72%;line-height:1.3}
   .nx-legs{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px}
   .nx-leg-val{font-size:30px;font-weight:500;line-height:1.1;text-shadow:0 0 12px currentColor}
   .nx-leg-val span{font-size:18px;margin-left:1px}

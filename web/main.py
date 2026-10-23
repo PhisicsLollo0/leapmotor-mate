@@ -777,6 +777,7 @@ async def overview(request: Request):
         charge_limit=db_reader.configured_charge_limit((vehicle or {}).get("vin") or ""),
         car_resp=db_reader.command_responsiveness(),
         battery_price=db_reader.current_blended_price(),   # #200 — must match /api/status-card
+        fuel_price=db_reader.current_fuel_price() if db_reader.is_reev_car() else None,   # fork: both routes
         data_link=None if _IS_DEMO else db_reader.data_link(status),   # demo runs no poller
     ))
 
@@ -4970,6 +4971,7 @@ async def status_card(request: Request):
         status=status, vehicle=vehicle,
         car_resp=db_reader.command_responsiveness(),
         battery_price=db_reader.current_blended_price(),   # #200 — must match the overview route
+        fuel_price=db_reader.current_fuel_price() if db_reader.is_reev_car() else None,   # fork: both routes
     ))
 
 
