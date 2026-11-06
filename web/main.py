@@ -22,6 +22,7 @@ from fastapi.concurrency import run_in_threadpool
 sys.path.insert(0, str(Path(__file__).parent))
 import battery_packs
 import db_reader
+import stats_insights  # fork: the Statistics page's "your questions" section
 import capability_profile
 import command_client
 import car_image
@@ -1794,9 +1795,12 @@ async def statistics(request: Request):
     # every other fuel figure — computed for nobody else, not merely hidden.
     efftemp = db_reader.get_efficiency_vs_temp(
         include_fuel=_reev)
+    # Fork: the "your questions" section on top — built from the figures above, never recomputed.
+    ins = stats_insights.get_insights(
+        _reev, totals["reev_breakeven"], totals["reev_fuel"], totals["reev_total"], efftemp)
     return templates.TemplateResponse(request, "statistics.html", _ctx(
         page="statistics", vehicle=vehicle,
-        grouped=grouped, totals=totals, efftemp=efftemp,
+        grouped=grouped, totals=totals, efftemp=efftemp, ins=ins,
     ))
 
 

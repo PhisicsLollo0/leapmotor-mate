@@ -29,6 +29,10 @@
 <script src="static/vendor/chart.umd.min.js"></script>
 {% endif %}
 
+{# Fork: the answers to the owner's own questions first, the classic figures below. #}
+{% if ins %}{% include 'partials/stats_insights.html' %}
+<h2 class="text-sm font-medium mb-3" style="color:var(--nx-soft)">{{ t('ins_all_stats') }}</h2>{% endif %}
+
 <!-- KPI cards -->
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
   <div class="card">

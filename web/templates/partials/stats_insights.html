@@ -1,0 +1,229 @@
+{# Fork: "your questions" — five answers above the classic statistics, each a question the owner of a
+   B10 REEV actually asked (web/stats_insights.py). Every block draws only when its data exists. #}
+<style>
+  .ins{display:grid;gap:14px;margin-bottom:28px}
+  .ins-row{display:grid;gap:14px;grid-template-columns:1fr}
+  @media (min-width:1024px){ .ins-row{grid-template-columns:1fr 1fr} .ins-hero{grid-template-columns:1.1fr 1fr} }
+  .ins-card{background:linear-gradient(180deg,var(--nx-panel),var(--nx-panel-2));border:1px solid var(--nx-edge);border-radius:14px;padding:18px 20px;min-width:0}
+  .ins-q{font-size:15px;font-weight:500;color:var(--nx-hi);margin-bottom:2px}
+  .ins-a{font-size:13px;color:var(--nx-soft);line-height:1.45;margin-bottom:14px}
+  .ins-a b{color:var(--nx-hi);font-weight:500}
+  .ins-note{font-size:11.5px;color:var(--nx-mute);line-height:1.45;margin-top:12px}
+  .ins-big{font-family:'Saira Condensed',sans-serif;font-size:clamp(52px,11vw,76px);font-weight:400;line-height:.95;color:var(--nx-hi)}
+  .ins-big small{font-size:20px;color:var(--nx-mute);margin-left:4px;font-family:Saira,sans-serif}
+  .ins-ev{color:var(--nx-ev)} .ins-fuel{color:var(--nx-fuel)} .ins-ok{color:var(--nx-ok)}
+  .ins-split{display:flex;height:12px;border-radius:999px;overflow:hidden;background:var(--nx-edge);margin:14px 0 6px}
+  .ins-split i{display:block;height:100%}
+  .ins-split .e{background:var(--nx-ev);box-shadow:0 0 10px rgba(79,216,255,.5)}
+  .ins-split .f{background:var(--nx-fuel)}
+  .ins-legend{display:flex;justify-content:space-between;font-size:12.5px;color:var(--nx-mute)}
+  .ins-legend b{font-weight:500}
+  .ins-delta{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--nx-edge)}
+  .ins-delta div{min-width:0}
+  .ins-delta .v{font-family:'Saira Condensed',sans-serif;font-size:30px;line-height:1.05}
+  .ins-delta .l{font-size:12px;color:var(--nx-mute);line-height:1.3}
+  .ins-delta .vs{font-size:12px;color:var(--nx-mute)}
+  .ins-extra{margin-top:12px;font-size:14px;color:var(--nx-ink)}
+  .ins-extra b{color:var(--nx-fuel);font-weight:500}
+  /* block 2 — the price scale */
+  .ins-scale{position:relative;height:58px;margin:26px 6px 4px}
+  .ins-scale .bar{position:absolute;left:0;right:0;top:26px;height:6px;border-radius:999px;
+    background:linear-gradient(90deg,rgba(87,227,160,.55),rgba(87,227,160,.15) var(--be),rgba(255,177,61,.18) var(--be),rgba(255,177,61,.5))}
+  .ins-scale .be{position:absolute;top:8px;bottom:6px;width:2px;background:var(--nx-hi);transform:translateX(-1px)}
+  .ins-scale .be span{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11.5px;color:var(--nx-hi)}
+  .ins-scale .pt{position:absolute;top:23px;width:12px;height:12px;border-radius:50%;transform:translateX(-6px);background:var(--nx-ok);box-shadow:0 0 8px var(--nx-ok);border:2px solid var(--nx-bg)}
+  .ins-scale .pt.no{background:var(--nx-fuel);box-shadow:0 0 8px var(--nx-fuel)}
+  .ins-scale .ax{position:absolute;top:40px;font-size:11px;color:var(--nx-mute);white-space:nowrap}
+  .ins-list{display:grid;gap:5px;font-size:12.5px;margin-top:10px}
+  .ins-list>div{display:grid;grid-template-columns:auto 1fr auto;gap:10px;color:var(--nx-mute)}
+  .ins-list>div>span:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ins-list>div>span:last-child{color:var(--nx-ink);text-align:right}
+  /* block 3 & 4 — paired bars */
+  .ins-bands{display:grid;gap:12px}
+  .ins-band{display:grid;grid-template-columns:96px 1fr;gap:4px 12px;align-items:center}
+  .ins-band .name{font-size:13px;color:var(--nx-ink);line-height:1.2}
+  .ins-band .name small{display:block;font-size:11px;color:var(--nx-mute)}
+  .ins-band .bars{display:grid;gap:4px;min-width:0}
+  .ins-b{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--nx-mute);min-width:0}
+  .ins-b i{display:block;height:8px;border-radius:999px;min-width:2px;flex:none}
+  .ins-b .e{background:var(--nx-ev)} .ins-b .f{background:var(--nx-fuel)} .ins-b .h{background:#FF6B6B}
+  .ins-b .stack{display:flex;height:8px;border-radius:999px;overflow:hidden;flex:none}
+  .ins-b .stack i{border-radius:0}
+  .ins-b em{font-style:normal;color:var(--nx-ink);white-space:nowrap}
+  .ins-b .none{font-style:italic}
+  .ins-keys{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--nx-mute);margin-bottom:12px}
+  .ins-keys i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  /* block 5 — the charge curve */
+  .ins-curve{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;align-items:end;height:150px;margin-top:6px}
+  .ins-curve>div{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;min-width:0}
+  .ins-curve .col{width:100%;border-radius:5px 5px 2px 2px;background:linear-gradient(180deg,var(--nx-ev),rgba(79,216,255,.25));min-height:2px}
+  .ins-curve .col.slow{background:linear-gradient(180deg,var(--nx-fuel),rgba(255,177,61,.25))}
+  .ins-curve .m{font-size:11px;color:var(--nx-ink);margin-bottom:3px;white-space:nowrap}
+  .ins-curve-x{display:grid;grid-template-columns:repeat(10,1fr);gap:4px;font-size:10.5px;color:var(--nx-mute);text-align:center;margin-top:5px}
+  .ins-curve-x span small{display:block;color:var(--nx-soft)}
+  .ins-sums{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:14px}
+  .ins-sums>div{background:#070B11;border:1px solid var(--nx-edge);border-radius:10px;padding:8px 10px;text-align:center}
+  .ins-sums b{display:block;font-family:'Saira Condensed',sans-serif;font-size:24px;font-weight:400;color:var(--nx-hi);line-height:1.1}
+  .ins-sums small{font-size:11.5px;color:var(--nx-mute)}
+  .ins-temps{display:grid;gap:4px;font-size:12.5px;margin-top:12px;padding-top:12px;border-top:1px solid var(--nx-edge)}
+  .ins-temps>div{display:grid;grid-template-columns:52px 1fr 64px;gap:10px;align-items:center;color:var(--nx-mute)}
+  .ins-temps>div>span:last-child{color:var(--nx-ink);text-align:right}
+</style>
+
+{% set mix = ins.mix %}{% set pr = ins.prices %}{% set sp = ins.speed %}{% set cold = ins.cold %}{% set cv = ins.curve %}
+{% set c100 = totals.cost100 %}
+<section class="ins" aria-label="{{ t('ins_title') }}">
+
+  {# ── 1. what driving costs, and how much of it is petrol ── #}
+  {% if mix %}
+  <div class="ins-card ins-row ins-hero">
+    <div>
+      <div class="ins-q">{{ t('ins_cost_q') }}</div>
+      {% if c100 and c100.total_100km %}
+      <div class="ins-big" style="margin-top:10px">{{ cost100_val(c100.total_100km) | money }}<small>/100 km</small></div>
+      <div class="ins-a" style="margin:6px 0 0">
+        <span class="ins-ev">⚡ {{ cost100_val(c100.elec_100km) | money if c100.elec_100km else '—' }}</span>
+        &nbsp; <span class="ins-fuel">⛽ {{ cost100_val(c100.fuel_100km) | money if c100.fuel_100km else '—' }}</span>
+      </div>
+      {% endif %}
+      <div class="ins-split" role="img" aria-label="{{ mix.ev_pct }}% {{ t('ins_electric') }}">
+        <i class="e" style="width:{{ mix.ev_pct }}%"></i><i class="f" style="width:{{ 100 - mix.ev_pct }}%"></i>
+      </div>
+      <div class="ins-legend">
+        <span><b class="ins-ev">{{ mix.ev_pct }}%</b> {{ t('ins_electric') }} · {{ mix.ev_km | dist(0) }}</span>
+        <span>{{ mix.engine_km | dist(0) }} · {{ t('ins_generator') }} <b class="ins-fuel">{{ 100 - mix.ev_pct }}%</b></span>
+      </div>
+    </div>
+    {% if mix.extra is not none %}
+    <div>
+      <div class="ins-a" style="margin-bottom:0">{{ t('ins_cost_a').format(km=mix.engine_km) }}</div>
+      <div class="ins-delta">
+        <div><div class="v ins-fuel">{{ mix.fuel_cost }} {{ currency.symbol }}</div><div class="l">{{ t('ins_on_petrol') }}</div></div>
+        <div class="vs">vs</div>
+        <div><div class="v ins-ev">{{ mix.plug_cost }} {{ currency.symbol }}</div><div class="l">{{ t('ins_on_plug').format(p=pr.avg_eur_kwh | dec(2)) }}</div></div>
+      </div>
+      {% if mix.extra > 0 %}
+      <div class="ins-extra">{{ t('ins_extra').format(eur='<b>' ~ mix.extra ~ ' ' ~ currency.symbol ~ '</b>') | safe }}</div>
+      {% endif %}
+      <div class="ins-note">{{ t('ins_cost_note') }}</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="ins-row">
+    {# ── 2. is the charger cheaper than the generator ── #}
+    {% if pr and pr.points and pr.breakeven %}
+    {% set mx = pr.scale_max %}
+    <div class="ins-card">
+      <div class="ins-q">{{ t('ins_price_q') }}</div>
+      <div class="ins-a">
+        {% if pr.cheaper_n == pr.points|length %}<b class="ins-ok">{{ t('ins_price_all').format(n=pr.cheaper_n) }}</b>
+        {% else %}<b>{{ t('ins_price_some').format(n=pr.cheaper_n, tot=pr.points|length) }}</b>{% endif %}
+        {{ t('ins_price_a').format(avg=pr.avg_eur_kwh | dec(2), be=pr.breakeven | dec(2), cur=currency.symbol) }}
+      </div>
+      <div class="ins-scale" style="--be:{{ (pr.breakeven / mx * 100) | round(1) }}%">
+        <div class="bar"></div>
+        <div class="be" style="left:{{ (pr.breakeven / mx * 100) | round(1) }}%"><span>{{ t('ins_breakeven') }} {{ pr.breakeven | dec(2) }}</span></div>
+        {% for p in pr.points %}
+        <div class="pt {% if not p.cheaper %}no{% endif %}" style="left:{{ (p.eur_kwh / mx * 100) | round(1) }}%"
+             title="{{ p.ts | localdate }} · {{ p.eur_kwh | dec(2) }} {{ currency.symbol }}/kWh"></div>
+        {% endfor %}
+        <div class="ax" style="left:0;transform:none">0</div>
+        <div class="ax" style="left:100%;transform:translateX(-100%)">{{ mx | dec(2) }} {{ currency.symbol }}/kWh</div>
+      </div>
+      <div class="ins-list">
+        {% for p in pr.points | reverse %}{% if loop.index <= 4 %}
+        <div><span>{{ p.ts | localdate }}</span><span>{{ p.place or '—' }} · {{ p.kwh | nice }} kWh</span>
+          <span class="{{ 'ins-ok' if p.cheaper else 'ins-fuel' }}">{{ p.eur_kwh | dec(2) }} {{ currency.symbol }}/kWh</span></div>
+        {% endif %}{% endfor %}
+      </div>
+      <div class="ins-note">{{ t('ins_price_note') }}</div>
+    </div>
+    {% endif %}
+
+    {# ── 3. consumption by speed ── #}
+    {% if sp %}
+    <div class="ins-card">
+      <div class="ins-q">{{ t('ins_speed_q') }}</div>
+      <div class="ins-a">{{ t('ins_speed_a') }}</div>
+      <div class="ins-keys"><span><i class="ins-ev" style="background:var(--nx-ev)"></i>kWh/100 km {{ t('ins_ev_only') }}</span>
+        {% if sp.fuel %}<span><i style="background:var(--nx-fuel)"></i>L/100 km {{ t('ins_with_generator') }}</span>{% endif %}</div>
+      <div class="ins-bands">
+        {% for b in sp.elec %}{% set f = sp.fuel[loop.index0] if sp.fuel else none %}
+        <div class="ins-band">
+          <div class="name">{{ t('ins_band_' ~ b.key) }}<small>{% if b.hi < 999 %}{{ b.lo }}–{{ b.hi }}{% else %}&gt; {{ b.lo }}{% endif %} km/h</small></div>
+          <div class="bars">
+            <div class="ins-b">{% if b.kwh_100km %}<i class="e" style="width:{{ (b.kwh_100km / sp.max_kwh * 70) | round(1) }}%"></i><em>{{ b.kwh_100km | nice }}</em>
+              {% if b.vs_city_pct is not none %}<span>({{ '%+d' % b.vs_city_pct }}% {{ t('ins_vs_city') }})</span>{% endif %}
+              {% else %}<span class="none">{{ t('ins_no_ev_data') if b.km < 1 else t('ins_too_few_km').format(km=b.km | nice) }}</span>{% endif %}</div>
+            {% if f %}<div class="ins-b">{% if f.l_100km %}<i class="f" style="width:{{ (f.l_100km / sp.max_l * 70) | round(1) }}%"></i><em>{{ f.l_100km | nice }}</em>
+              <span>· {{ f.trips }} {{ t('ins_trips') }}</span>{% else %}<span class="none">—</span>{% endif %}</div>{% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="ins-note">{{ t('ins_speed_note') }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="ins-row">
+    {# ── 4. the cold ── #}
+    {% if cold and (cold.bands or cold.charges) %}
+    {% set hmax = cold.bands | map(attribute='kwh_100km') | max if cold.bands else 1 %}
+    <div class="ins-card">
+      <div class="ins-q">{{ t('ins_cold_q') }}</div>
+      <div class="ins-a">{{ t('ins_cold_a') }}</div>
+      {% if cold.bands %}
+      <div class="ins-keys"><span><i style="background:var(--nx-ev)"></i>{{ t('ins_driving') }}</span><span><i style="background:#FF6B6B"></i>{{ t('ins_heating') }}</span></div>
+      <div class="ins-bands">
+        {% for b in cold.bands %}
+        <div class="ins-band">
+          <div class="name">{{ b.lo }}–{{ b.hi }} °C<small>{{ b.trips }} {{ t('ins_trips') }} · {{ b.km | dist(0) }}</small></div>
+          <div class="ins-b"><span class="stack" style="width:{{ (b.kwh_100km / hmax * 70) | round(1) }}%">
+              <i class="e" style="width:{{ 100 - (b.heat_pct or 0) }}%"></i><i class="h" style="width:{{ b.heat_pct or 0 }}%"></i></span>
+            <em>{{ b.kwh_100km | nice }}</em><span>· {{ b.heat_pct or 0 }}% {{ t('ins_heating') | lower }}</span></div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if cold.charges %}
+      <div class="ins-temps">
+        <div style="color:var(--nx-soft)"><span>{{ t('ins_pack') }}</span><span>{{ t('ins_dc_mid') }}</span><span></span></div>
+        {% set kmax = cold.charges | map(attribute='kw_mid') | max %}
+        {% for c in cold.charges %}
+        <div><span>{{ c.temp_start | nice }} °C</span>
+          <span class="ins-b"><i class="e" style="width:{{ (c.kw_mid / kmax * 90) | round(1) }}%"></i></span>
+          <span>{{ c.kw_mid | nice }} kW</span></div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      <div class="ins-note">{{ t('ins_cold_note') }}</div>
+    </div>
+    {% endif %}
+
+    {# ── 5. the DC curve ── #}
+    {% if cv and cv.sessions and cv.max_min %}
+    <div class="ins-card">
+      <div class="ins-q">{{ t('ins_curve_q') }}</div>
+      <div class="ins-a">{{ t('ins_curve_a').format(n=cv.sessions) }}</div>
+      <div class="ins-curve" role="img" aria-label="{{ t('ins_curve_q') }}">
+        {% for b in cv.bands %}
+        <div>{% if b.min_per_10 %}<span class="m">{{ b.min_per_10 | nice }}′</span>
+          <span class="col {% if b.min_per_10 > 2 * (cv.bands[3].min_per_10 or 99) %}slow{% endif %}" style="height:{{ (b.min_per_10 / cv.max_min * 82) | round(1) }}%"></span>{% endif %}</div>
+        {% endfor %}
+      </div>
+      <div class="ins-curve-x">
+        {% for b in cv.bands %}<span>{{ b.lo }}<small>{{ (b.kw | nice ~ ' kW') if b.kw else '' }}</small></span>{% endfor %}
+      </div>
+      <div class="ins-sums">
+        <div><b>{{ cv.t10_80 ~ '′' if cv.t10_80 else '—' }}</b><small>10 → 80 %</small></div>
+        <div><b>{{ cv.t80_100 ~ '′' if cv.t80_100 else '—' }}</b><small>80 → 100 %</small></div>
+        <div><b>{{ cv.t90_100 ~ '′' if cv.t90_100 else '—' }}</b><small>90 → 100 %</small></div>
+      </div>
+      <div class="ins-note">{{ t('ins_curve_note') }}</div>
+    </div>
+    {% endif %}
+  </div>
+</section>
