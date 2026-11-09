@@ -278,7 +278,22 @@
 </div>
 {% endif %}
 
-{% if totals.reev_breakeven %}
+{% if ins and ins.breakeven %}
+{# The same threshold the insights card draws, per speed band from the 5-minute windows: the
+   whole-trip ratio below put city kWh against motorway litres and answered 1.21 for a true 0.75. #}
+<div class="card mb-6">
+  <div class="stat-label">{{ t('stats_breakeven_label') }}</div>
+  <div class="flex items-baseline gap-1 flex-wrap">
+    <span class="stat-value text-emerald-400">{{ ins.breakeven.value | dec(3) }}</span>
+    <span class="text-slate-400 text-sm">{{ currency.symbol }}/kWh</span>
+  </div>
+  <div class="text-slate-500 text-xs mt-1">
+    <span class="text-amber-400/80">{{ ins.breakeven.g_l_kwh | dec(2) }} L/kWh</span> {{ t('stats_breakeven_generator') }}
+    · {{ ins.breakeven.price_l | dec(3) }} {{ currency.symbol }}/L
+    {% if ins.breakeven.eta %}· {{ t('stats_breakeven_eta').format(eta=(ins.breakeven.eta * 100) | round | int) }}{% endif %}
+  </div>
+</div>
+{% elif totals.reev_breakeven %}
 <div class="card mb-6">
   <div class="stat-label">{{ t('stats_breakeven_label') }}</div>
   <div class="flex items-baseline gap-1 flex-wrap">

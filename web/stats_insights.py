@@ -42,6 +42,8 @@ WINDOW_MIN = 5            # a window this long is long enough for the tank gauge
 _WINDOW_FILL = 0.8        # a trip's last window counts if it ran at least this share of WINDOW_MIN
 _GEN_L_PER_MIN = 0.02     # burned faster than this, the generator ran in the window
 _EV_L = 0.01              # burned less than this, the engine was off the whole window
+_KWH_PER_M = 1900 * 9.81 / 3.6e6   # lifting the car (≈1.9 t with a driver) one metre, in kWh
+_ETA_RANGE = (0.7, 1.0)   # a charge whose battery/billed ratio falls outside is a typo, not a loss
 
 
 def _level_at(fuel, t: float) -> Optional[float]:
@@ -63,8 +65,9 @@ def windows(samples, fuel=None, minutes: int = WINDOW_MIN) -> list[dict]:
     motorway disappears. A window of a few minutes is a stretch of road at one speed with enough
     fuel burned to measure. Never across two trips or a hole in the samples.
 
-    `samples`: (trip_id, recorded_at, speed_kmh, power_kw) sorted by trip then time; the energy is
-    the battery power × time (positive drawn, negative put back). `fuel`: [(t, litres)] sorted, the
+    `samples`: (trip_id, recorded_at, speed_kmh, power_kw[, elevation_m]) sorted by trip then time;
+    the energy is the battery power × time (positive drawn, negative put back). The climb is the
+    last known elevation minus the first, None with fewer than two. `fuel`: [(t, litres)] sorted, the
     tank level over time, or None for a car without a tank."""
     out, cur, prev = [], None, None
 
@@ -75,9 +78,11 @@ def windows(samples, fuel=None, minutes: int = WINDOW_MIN) -> list[dict]:
                 l0, l1 = _level_at(fuel, w["t0"]), _level_at(fuel, w["t1"])
                 litres = None if l0 is None or l1 is None else l0 - l1
             out.append({"trip": w["trip"], "t0": w["t0"], "km": w["km"], "kwh": w["kwh"],
-                        "hours": w["s"] / 3600, "litres": litres, "tank": fuel is not None})
+                        "hours": w["s"] / 3600, "litres": litres, "tank": fuel is not None,
+                        "climb_m": w["e1"] - w["e0"] if w["e0"] is not None and w["n_e"] > 1 else None})
 
-    for trip, ts, v, p in samples:
+    for trip, ts, v, p, *rest in samples:
+        e = rest[0] if rest else None
         if v is None or p is None:
             close(cur)
             cur = prev = None
@@ -89,6 +94,10 @@ def windows(samples, fuel=None, minutes: int = WINDOW_MIN) -> list[dict]:
             cur["kwh"] += (p + prev[3]) / 2 * dt / 3600
             cur["s"] += dt
             cur["t1"] = t
+            if e is not None:                        # this sample ends the window it closes
+                cur["e0"] = e if cur["e0"] is None else cur["e0"]
+                cur["e1"] = e
+                cur["n_e"] += 1
             if cur["s"] >= minutes * 60:
                 close(cur)
                 cur = None
@@ -96,7 +105,8 @@ def windows(samples, fuel=None, minutes: int = WINDOW_MIN) -> list[dict]:
             close(cur)
             cur = None
         if cur is None:
-            cur = {"trip": trip, "t0": t, "t1": t, "s": 0.0, "km": 0.0, "kwh": 0.0}
+            cur = {"trip": trip, "t0": t, "t1": t, "s": 0.0, "km": 0.0, "kwh": 0.0,
+                   "e0": e, "e1": e, "n_e": 1 if e is not None else 0}
         prev = (trip, t, v, p)
     close(cur)
     return out
@@ -113,19 +123,21 @@ def window_bands(wins, minutes: int = WINDOW_MIN, head_of=None) -> list[dict]:
     `head_of` maps a merged piece to the trip it is shown under, so the trip list links the drive."""
     head_of = head_of or {}
     acc = {key: {"ev_km": 0.0, "ev_kwh": 0.0, "ev_n": 0, "gen_km": 0.0, "litres": 0.0,
-                 "gen_kwh": 0.0, "gen_n": 0, "trips": {}} for _, _, key in SPEED_BANDS}
+                 "gen_kwh": 0.0, "gen_climb": 0.0, "gen_n": 0, "trips": {}} for _, _, key in SPEED_BANDS}
     for w in wins:
         a = acc[_band_of(w["km"] / w["hours"])]
         if w["litres"] is not None and w["litres"] >= _GEN_L_PER_MIN * minutes:
             a["gen_km"] += w["km"]
             a["litres"] += w["litres"]
             a["gen_kwh"] += w["kwh"]
+            a["gen_climb"] += _KWH_PER_M * (w.get("climb_m") or 0)
             a["gen_n"] += 1
             kind = "gen_km"
         elif (w["litres"] is None and not w.get("tank")) or \
                 (w["litres"] is not None and abs(w["litres"]) < _EV_L):
             a["ev_km"] += w["km"]
-            a["ev_kwh"] += w["kwh"]
+            # on the flat: a descent lent the battery energy that a level road would not have
+            a["ev_kwh"] += w["kwh"] - _KWH_PER_M * (w.get("climb_m") or 0)
             a["ev_n"] += 1
             kind = "ev_km"
         else:
@@ -140,6 +152,14 @@ def window_bands(wins, minutes: int = WINDOW_MIN, head_of=None) -> list[dict]:
     out = []
     for lo, hi, key in SPEED_BANDS:
         a = acc[key]
+        # Litres per kWh the generator made: what the car needed on those km (the band's own
+        # electric consumption, on the flat), less what the battery gave, plus what the climbs took.
+        # Only where both halves were driven at this speed: a city kWh/100 km says nothing about
+        # the motorway.
+        g = produced = None
+        if a["ev_km"] >= _BAND_MIN_KM and a["ev_kwh"] > 0 and a["gen_km"] >= _BAND_MIN_KM:
+            produced = a["ev_kwh"] / a["ev_km"] * a["gen_km"] - a["gen_kwh"] + a["gen_climb"]
+            g = a["litres"] / produced if produced > 0 else None
         out.append({
             "key": key, "lo": lo, "hi": hi,
             "km": round(a["ev_km"], 1), "kwh": round(a["ev_kwh"], 2), "windows": a["ev_n"],
@@ -147,6 +167,8 @@ def window_bands(wins, minutes: int = WINDOW_MIN, head_of=None) -> list[dict]:
             if a["ev_km"] >= _BAND_MIN_KM and a["ev_kwh"] > 0 else None,
             "gen_km": round(a["gen_km"], 1), "litres": round(a["litres"], 2), "gen_windows": a["gen_n"],
             "batt_kwh": round(a["gen_kwh"], 1),
+            "g_l_kwh": round(g, 3) if g else None,
+            "produced_kwh": round(produced, 1) if g else None,
             "l_100km": round(a["litres"] / a["gen_km"] * 100, 1) if a["gen_km"] >= _BAND_MIN_KM else None,
             # each trip's own rate in the band, so the one that drags the band's figure stands out
             "trips": [{"id": i, "ev_km": round(x["ev_km"], 1), "gen_km": round(x["gen_km"], 1),
@@ -156,6 +178,41 @@ def window_bands(wins, minutes: int = WINDOW_MIN, head_of=None) -> list[dict]:
                       for i, x in a["trips"].items()],
         })
     return out
+
+
+def charge_efficiency(rows) -> Optional[dict]:
+    """kWh into the battery per kWh billed, over the charges that carry both.
+
+    `rows`: (energy_added_kwh, billed kWh). A ratio outside _ETA_RANGE is a typed or merged figure
+    gone wrong (7/11/2026: 13.6 kWh billed for 3.8 in the pack), never a real loss: left out."""
+    good = [(b, g) for b, g in rows if b and g and _ETA_RANGE[0] <= b / g <= _ETA_RANGE[1]]
+    if not good:
+        return None
+    return {"eta": round(sum(b for b, _ in good) / sum(g for _, g in good), 3), "n": len(good)}
+
+
+def breakevens(bands, price_l: Optional[float], eta: Optional[dict]) -> Optional[dict]:
+    """Above which €/kWh the generator is cheaper, per speed band and over all of them.
+
+        break-even = €/L × litres per kWh made × kWh into the battery per kWh billed
+
+    The kWh/100 km cancels out — the energy the road takes is the same whichever side supplies it —
+    so the bands differ only by how well the generator works at that load. A band without an
+    electric stretch at its speed has no g and no break-even, never one borrowed from another."""
+    if not price_l:
+        return None
+    k = price_l * (eta["eta"] if eta else 1.0)
+    rows = [b for b in bands if b.get("g_l_kwh")]
+    if not rows:
+        return None
+    litres = sum(b["litres"] for b in rows)
+    made = sum(b["produced_kwh"] for b in rows)
+    return {"value": round(litres / made * k, 3), "g_l_kwh": round(litres / made, 3),
+            "eta": eta["eta"] if eta else None, "eta_n": eta["n"] if eta else 0,
+            "price_l": round(price_l, 3),
+            "bands": [{"key": b["key"], "lo": b["lo"], "hi": b["hi"], "g_l_kwh": b["g_l_kwh"],
+                       "value": round(b["g_l_kwh"] * k, 3) if b.get("g_l_kwh") else None,
+                       "gen_km": b["gen_km"], "ev_km": b["km"]} for b in bands]}
 
 
 def charge_prices(charges, breakeven: Optional[float]) -> dict:
@@ -320,27 +377,10 @@ def get_insights(is_reev: bool, breakeven: Optional[dict], fuel: Optional[dict],
         log.exception("insights: trips")
         trips, engine_ids = [], set()
 
-    charges = []
-    try:
-        charges = _charges(db)
-        be = breakeven["breakeven_kwh"] if breakeven else None
-        out["prices"] = charge_prices(charges, be)
-    except Exception:
-        log.exception("insights: prices")
-
-    try:
-        total_km = (total or {}).get("total_km") or sum(r["distance_km"] or 0 for r in trips)
-        engine_km = (fuel or {}).get("engine_km") or 0
-        out["mix"] = drive_mix(total_km, engine_km, (fuel or {}).get("total_cost"),
-                               (breakeven or {}).get("elec_kwh_100km"),
-                               (out.get("prices") or {}).get("avg_eur_kwh"))
-    except Exception:
-        log.exception("insights: mix")
-
     try:
         # Every trip, the generator ones included: their electric stretches are electric windows.
         samples = db.execute(
-            "SELECT tp.trip_id, tp.recorded_at, tp.speed_kmh, tp.power_kw FROM trip_positions tp "
+            "SELECT tp.trip_id, tp.recorded_at, tp.speed_kmh, tp.power_kw, tp.elevation_m FROM trip_positions tp "
             "JOIN trips t ON t.id = tp.trip_id WHERE t.vehicle_id = COALESCE(?, t.vehicle_id) "
             "ORDER BY tp.trip_id, tp.recorded_at", (vid,)).fetchall()
         fuel_series = None
@@ -360,11 +400,39 @@ def get_insights(is_reev: bool, breakeven: Optional[dict], fuel: Optional[dict],
         for b in bands:
             b["vs_city_pct"] = (round((b["kwh_100km"] / city - 1) * 100)
                                 if city and b["kwh_100km"] and b["key"] != "city" else None)
+        out["breakeven"] = breakevens(bands, (breakeven or {}).get("fuel_price_l"), charge_efficiency(
+            db.execute("SELECT energy_added_kwh, gross_kwh FROM charges WHERE gross_kwh > 0 "
+                       "AND vehicle_id = COALESCE(?, vehicle_id)", (vid,)).fetchall()))
         out["speed"] = {"bands": bands, "fuel": is_reev, "minutes": WINDOW_MIN,
                         "max_kwh": max([b["kwh_100km"] or 0 for b in bands], default=0) or None,
                         "max_l": max([b["l_100km"] or 0 for b in bands], default=0) or None}
     except Exception:
         log.exception("insights: speed")
+
+    charges = []
+    try:
+        charges = _charges(db)
+        # the break-even per speed band when the windows could make one; the old whole-trip ratio
+        # (city kWh against motorway litres) only when they could not
+        be = (out.get("breakeven") or {}).get("value") or (breakeven["breakeven_kwh"] if breakeven else None)
+        out["prices"] = charge_prices(charges, be)
+    except Exception:
+        log.exception("insights: prices")
+
+    try:
+        total_km = (total or {}).get("total_km") or sum(r["distance_km"] or 0 for r in trips)
+        engine_km = (fuel or {}).get("engine_km") or 0
+        # The kWh the plug would have had to bill for the generator's kilometres: the energy the
+        # generator made on them (litres ÷ L/kWh) plus the charging losses. The city kWh/100 km of
+        # the whole-trip break-even would price motorway kilometres at town consumption.
+        be = out.get("breakeven")
+        elec_100 = (breakeven or {}).get("elec_kwh_100km")
+        if be and (fuel or {}).get("engine_l_100km"):
+            elec_100 = fuel["engine_l_100km"] / be["g_l_kwh"] / (be["eta"] or 1.0)
+        out["mix"] = drive_mix(total_km, engine_km, (fuel or {}).get("total_cost"), elec_100,
+                               (out.get("prices") or {}).get("avg_eur_kwh"))
+    except Exception:
+        log.exception("insights: mix")
 
     curves = []
     try:

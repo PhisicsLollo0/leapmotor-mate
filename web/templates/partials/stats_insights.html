@@ -143,7 +143,23 @@
           <span class="{{ 'ins-ok' if p.cheaper else 'ins-fuel' }}">{{ p.eur_kwh | dec(2) }} {{ currency.symbol }}/kWh</span></div>
         {% endif %}{% endfor %}
       </div>
-      <div class="ins-note">{{ t('ins_price_note') }}</div>
+      {# The threshold per speed band: the generator works better at some loads than others, and
+         a band with no electric stretch at its own speed gets no figure rather than a borrowed one. #}
+      {% set be = ins.breakeven %}
+      {% if be %}
+      <div class="ins-list ins-be-bands">
+        {% for b in be.bands %}
+        <div><span>{{ t('ins_band_' ~ b.key) }}</span>
+          <span>{% if b.hi < 999 %}{{ b.lo }}–{{ b.hi }}{% else %}&gt; {{ b.lo }}{% endif %} km/h{% if b.g_l_kwh %} · {{ b.g_l_kwh | dec(2) }} L/kWh{% endif %}</span>
+          {% if b.value %}<span class="ins-ok">{{ b.value | dec(2) }} {{ currency.symbol }}/kWh</span>
+          {% else %}<span class="none">{{ t('ins_be_no_ev') }}</span>{% endif %}</div>
+        {% endfor %}
+      </div>
+      <div class="ins-note">{{ t('ins_price_note').format(price=be.price_l | dec(3), g=be.g_l_kwh | dec(2), cur=currency.symbol) }}
+        {% if be.eta %}{{ t('ins_be_eta').format(eta=(be.eta * 100) | round | int, n=be.eta_n) }}{% endif %}</div>
+      {% else %}
+      <div class="ins-note">{{ t('ins_price_note_old') }}</div>
+      {% endif %}
     </div>
     {% endif %}
 
