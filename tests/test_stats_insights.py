@@ -223,3 +223,16 @@ def test_the_plug_price_of_generator_kilometres_uses_the_energy_the_generator_ma
     elec_100 = 9.0 / 0.412 / 0.93
     mix = si.drive_mix(1710, 1134, 203, elec_100, 0.389)
     assert mix["plug_cost"] == round(1134 * elec_100 / 100 * 0.389)       # ≈ 103 €, not 64
+
+
+def test_each_charge_is_judged_on_the_kwh_that_reached_the_battery():
+    r = si.charge_prices([
+        {"ts": "dc", "cost": 6.05, "kwh": 15.918, "battery_kwh": 15.0},
+        {"ts": "ac", "cost": 7.5, "kwh": 13.639, "battery_kwh": 11.844},
+        {"ts": "typed", "cost": 3.0, "kwh": 10.0}], 0.76, 0.93)
+    dc, ac, typed = r["points"]
+    assert dc["eur_kwh_batt"] == round(6.05 / 15.0, 3) and ac["eur_kwh_batt"] == round(7.5 / 11.844, 3)
+    assert typed["battery_kwh"] == 9.3                       # no battery figure: the average η
+    assert r["breakeven_batt"] == round(0.76 / 0.93, 3)      # € per kWh the generator puts in
+    assert [p["cheaper"] for p in r["points"]] == [True, True, True]
+    assert r["avg_eur_kwh_batt"] == round(16.55 / (15.0 + 11.8 + 9.3), 3)

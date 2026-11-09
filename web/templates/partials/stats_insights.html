@@ -105,7 +105,7 @@
       <div class="ins-delta">
         <div><div class="v ins-fuel">{{ mix.fuel_cost }} {{ currency.symbol }}</div><div class="l">{{ t('ins_on_petrol') }}</div></div>
         <div class="vs">vs</div>
-        <div><div class="v ins-ev">{{ mix.plug_cost }} {{ currency.symbol }}</div><div class="l">{{ t('ins_on_plug').format(p=pr.avg_eur_kwh | dec(2)) }}</div></div>
+        <div><div class="v ins-ev">{{ mix.plug_cost }} {{ currency.symbol }}</div><div class="l">{{ t('ins_on_plug').format(p=(pr.avg_eur_kwh_batt or pr.avg_eur_kwh) | dec(2)) }}</div></div>
       </div>
       {% if mix.extra > 0 %}
       <div class="ins-extra">{{ t('ins_extra').format(eur='<b>' ~ mix.extra ~ ' ' ~ currency.symbol ~ '</b>') | safe }}</div>
@@ -125,22 +125,24 @@
       <div class="ins-a">
         {% if pr.cheaper_n == pr.points|length %}<b class="ins-ok">{{ t('ins_price_all').format(n=pr.cheaper_n) }}</b>
         {% else %}<b>{{ t('ins_price_some').format(n=pr.cheaper_n, tot=pr.points|length) }}</b>{% endif %}
-        {{ t('ins_price_a').format(avg=pr.avg_eur_kwh | dec(2), be=pr.breakeven | dec(2), cur=currency.symbol) }}
+        {{ t('ins_price_a').format(avg=pr.avg_eur_kwh | dec(2), batt=pr.avg_eur_kwh_batt | dec(2), be=pr.breakeven_batt | dec(2), cur=currency.symbol) }}
       </div>
-      <div class="ins-scale" style="--be:{{ (pr.breakeven / mx * 100) | round(1) }}%">
+      {# The scale is in € per kWh INTO the battery: each charge with its own losses, against what the
+         generator asks for the same kWh. #}
+      <div class="ins-scale" style="--be:{{ (pr.breakeven_batt / mx * 100) | round(1) }}%">
         <div class="bar"></div>
-        <div class="be" style="left:{{ (pr.breakeven / mx * 100) | round(1) }}%"><span>{{ t('ins_breakeven') }} {{ pr.breakeven | dec(2) }}</span></div>
+        <div class="be" style="left:{{ (pr.breakeven_batt / mx * 100) | round(1) }}%"><span>{{ t('ins_breakeven') }} {{ pr.breakeven_batt | dec(2) }}</span></div>
         {% for p in pr.points %}
-        <div class="pt {% if not p.cheaper %}no{% endif %}" style="left:{{ (p.eur_kwh / mx * 100) | round(1) }}%"
-             title="{{ p.ts | localdate }} · {{ p.eur_kwh | dec(2) }} {{ currency.symbol }}/kWh"></div>
+        <div class="pt {% if not p.cheaper %}no{% endif %}" style="left:{{ (p.eur_kwh_batt / mx * 100) | round(1) }}%"
+             title="{{ p.ts | localdate }} · {{ p.eur_kwh_batt | dec(2) }} {{ currency.symbol }}/kWh"></div>
         {% endfor %}
         <div class="ax" style="left:0;transform:none">0</div>
         <div class="ax" style="left:100%;transform:translateX(-100%)">{{ mx | dec(2) }} {{ currency.symbol }}/kWh</div>
       </div>
       <div class="ins-list">
         {% for p in pr.points | reverse %}{% if loop.index <= 4 %}
-        <div><span>{{ p.ts | localdate }}</span><span>{{ p.place or '—' }} · {{ p.kwh | nice }} kWh</span>
-          <span class="{{ 'ins-ok' if p.cheaper else 'ins-fuel' }}">{{ p.eur_kwh | dec(2) }} {{ currency.symbol }}/kWh</span></div>
+        <div><span>{{ p.ts | localdate }}</span><span>{{ p.place or '—' }} · {{ t('ins_price_kwh').format(paid=p.kwh | nice, batt=p.battery_kwh | nice, rate=p.eur_kwh | dec(2), cur=currency.symbol) }}</span>
+          <span class="{{ 'ins-ok' if p.cheaper else 'ins-fuel' }}">{{ p.eur_kwh_batt | dec(2) }} {{ currency.symbol }}/kWh</span></div>
         {% endif %}{% endfor %}
       </div>
       {# The threshold per speed band: the generator works better at some loads than others, and
@@ -151,12 +153,12 @@
         {% for b in be.bands %}
         <div><span>{{ t('ins_band_' ~ b.key) }}</span>
           <span>{% if b.hi < 999 %}{{ b.lo }}–{{ b.hi }}{% else %}&gt; {{ b.lo }}{% endif %} km/h{% if b.g_l_kwh %} · {{ b.g_l_kwh | dec(2) }} L/kWh{% endif %}</span>
-          {% if b.value %}<span class="ins-ok">{{ b.value | dec(2) }} {{ currency.symbol }}/kWh</span>
+          {% if b.value_batt %}<span class="ins-ok">{{ b.value_batt | dec(2) }} {{ currency.symbol }}/kWh</span>
           {% else %}<span class="none">{{ t('ins_be_no_ev') }}</span>{% endif %}</div>
         {% endfor %}
       </div>
       <div class="ins-note">{{ t('ins_price_note').format(price=be.price_l | dec(3), g=be.g_l_kwh | dec(2), cur=currency.symbol) }}
-        {% if be.eta %}{{ t('ins_be_eta').format(eta=(be.eta * 100) | round | int, n=be.eta_n) }}{% endif %}</div>
+        {% if be.eta %}{{ t('ins_be_eta').format(eta=(be.eta * 100) | round | int, n=be.eta_n, paid=be.value | dec(2), cur=currency.symbol) }}{% endif %}</div>
       {% else %}
       <div class="ins-note">{{ t('ins_price_note_old') }}</div>
       {% endif %}

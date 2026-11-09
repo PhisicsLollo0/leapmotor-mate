@@ -183,8 +183,9 @@ def window_bands(wins, minutes: int = WINDOW_MIN, head_of=None) -> list[dict]:
 def charge_efficiency(rows) -> Optional[dict]:
     """kWh into the battery per kWh billed, over the charges that carry both.
 
-    `rows`: (energy_added_kwh, billed kWh). A ratio outside _ETA_RANGE is a typed or merged figure
-    gone wrong (7/11/2026: 13.6 kWh billed for 3.8 in the pack), never a real loss: left out."""
+    `rows`: (battery kWh, billed kWh) of whole charges as shown — a receipt typed on the first piece of
+    a merged charge covers the pieces after it too (7/11/2026: 13.6 kWh billed for 3.8 + 8.0 in the
+    pack). A ratio outside _ETA_RANGE is a typo, never a real loss: left out."""
     good = [(b, g) for b, g in rows if b and g and _ETA_RANGE[0] <= b / g <= _ETA_RANGE[1]]
     if not good:
         return None
@@ -212,25 +213,37 @@ def breakevens(bands, price_l: Optional[float], eta: Optional[dict]) -> Optional
             "price_l": round(price_l, 3),
             "bands": [{"key": b["key"], "lo": b["lo"], "hi": b["hi"], "g_l_kwh": b["g_l_kwh"],
                        "value": round(b["g_l_kwh"] * k, 3) if b.get("g_l_kwh") else None,
+                       "value_batt": round(b["g_l_kwh"] * price_l, 3) if b.get("g_l_kwh") else None,
                        "gen_km": b["gen_km"], "ev_km": b["km"]} for b in bands]}
 
 
-def charge_prices(charges, breakeven: Optional[float]) -> dict:
-    """What each charge cost per kWh, against the break-even of `reev_breakeven_kwh_price`.
-    `charges`: dicts with ts, cost, kwh (the BILLED kWh, `_billed_kwh`), place. Unpriced ones stay
-    out — unknown, not free."""
+def charge_prices(charges, breakeven: Optional[float], eta: Optional[float] = None) -> dict:
+    """What each charge cost per kWh that reached the battery, against the generator's price for the
+    same kWh (the break-even without the charging losses: €/L × L/kWh).
+
+    `charges`: dicts with ts, cost, kwh (the BILLED kWh, `_billed_kwh`), battery_kwh, place. A charge
+    is judged on its own losses — an AC session loses more than a DC one, and the average η would hide
+    it; one without a battery figure falls back on that average. Unpriced ones stay out — unknown,
+    not free."""
+    be_batt = breakeven / eta if breakeven and eta else breakeven
     pts = []
     for c in charges:
         if c.get("cost") is None or c["cost"] < 0 or not c.get("kwh") or c["kwh"] <= 0:
             continue
         rate = c["cost"] / c["kwh"]
+        batt = c.get("battery_kwh") or (c["kwh"] * eta if eta else c["kwh"])
+        batt_rate = c["cost"] / batt
         pts.append({"ts": c["ts"], "place": c.get("place"), "kwh": round(c["kwh"], 1),
-                    "cost": round(c["cost"], 2), "eur_kwh": round(rate, 3),
-                    "cheaper": (rate < breakeven) if breakeven else None})
+                    "battery_kwh": round(batt, 1), "cost": round(c["cost"], 2),
+                    "eur_kwh": round(rate, 3), "eur_kwh_batt": round(batt_rate, 3),
+                    "cheaper": (batt_rate < be_batt) if be_batt else None})
     kwh = sum(p["kwh"] for p in pts)
-    avg = sum(p["cost"] for p in pts) / kwh if kwh else None
-    scale = max([p["eur_kwh"] for p in pts] + [breakeven or 0]) * 1.15 if pts else None
-    return {"points": pts, "avg_eur_kwh": round(avg, 3) if avg else None, "breakeven": breakeven,
+    batt = sum(p["battery_kwh"] for p in pts)
+    cost = sum(p["cost"] for p in pts)
+    scale = max([p["eur_kwh_batt"] for p in pts] + [be_batt or 0]) * 1.15 if pts else None
+    return {"points": pts, "avg_eur_kwh": round(cost / kwh, 3) if kwh else None,
+            "avg_eur_kwh_batt": round(cost / batt, 3) if batt else None,
+            "breakeven": breakeven, "breakeven_batt": round(be_batt, 3) if be_batt else None,
             "scale_max": round(scale, 3) if scale else None,
             "cheaper_n": sum(1 for p in pts if p["cheaper"])}
 
@@ -350,10 +363,17 @@ def _charges(db) -> list[dict]:
         pieces = [dict(p) for p in pieces]
         head = min(pieces, key=lambda p: p["started_at"])
         priced = [p["cost"] for p in pieces if p["cost"] is not None]
+        battery = sum(p["energy_added_kwh"] or 0 for p in pieces)
+        # A receipt typed on one piece of a merged charge is the whole session's: when it already
+        # covers every piece's battery kWh, the other pieces' battery figure would count twice.
+        metered = [p for p in pieces if p.get("gross_kwh")]
+        billed = sum(p["gross_kwh"] for p in metered)
+        if not metered or billed < battery:
+            billed += sum(dr._billed_kwh(p) or 0 for p in pieces if not p.get("gross_kwh"))
         out.append({"id": head["id"], "ts": head["started_at"], "type": head.get("charge_type"),
                     "place": head.get("charging_place_name") or head.get("location_name"),
-                    "cost": sum(priced) if priced else None,
-                    "kwh": sum(dr._billed_kwh(p) or 0 for p in pieces)})
+                    "cost": sum(priced) if priced else None, "kwh": billed,
+                    "battery_kwh": battery or None, "metered": bool(metered)})
     return out
 
 
@@ -401,8 +421,7 @@ def get_insights(is_reev: bool, breakeven: Optional[dict], fuel: Optional[dict],
             b["vs_city_pct"] = (round((b["kwh_100km"] / city - 1) * 100)
                                 if city and b["kwh_100km"] and b["key"] != "city" else None)
         out["breakeven"] = breakevens(bands, (breakeven or {}).get("fuel_price_l"), charge_efficiency(
-            db.execute("SELECT energy_added_kwh, gross_kwh FROM charges WHERE gross_kwh > 0 "
-                       "AND vehicle_id = COALESCE(?, vehicle_id)", (vid,)).fetchall()))
+            [(c["battery_kwh"], c["kwh"]) for c in _charges(db) if c["metered"]]))
         out["speed"] = {"bands": bands, "fuel": is_reev, "minutes": WINDOW_MIN,
                         "max_kwh": max([b["kwh_100km"] or 0 for b in bands], default=0) or None,
                         "max_l": max([b["l_100km"] or 0 for b in bands], default=0) or None}
@@ -415,7 +434,7 @@ def get_insights(is_reev: bool, breakeven: Optional[dict], fuel: Optional[dict],
         # the break-even per speed band when the windows could make one; the old whole-trip ratio
         # (city kWh against motorway litres) only when they could not
         be = (out.get("breakeven") or {}).get("value") or (breakeven["breakeven_kwh"] if breakeven else None)
-        out["prices"] = charge_prices(charges, be)
+        out["prices"] = charge_prices(charges, be, (out.get("breakeven") or {}).get("eta"))
     except Exception:
         log.exception("insights: prices")
 
@@ -427,10 +446,12 @@ def get_insights(is_reev: bool, breakeven: Optional[dict], fuel: Optional[dict],
         # the whole-trip break-even would price motorway kilometres at town consumption.
         be = out.get("breakeven")
         elec_100 = (breakeven or {}).get("elec_kwh_100km")
-        if be and (fuel or {}).get("engine_l_100km"):
-            elec_100 = fuel["engine_l_100km"] / be["g_l_kwh"] / (be["eta"] or 1.0)
+        plug_price = (out.get("prices") or {}).get("avg_eur_kwh")
+        if be and (fuel or {}).get("engine_l_100km") and (out.get("prices") or {}).get("avg_eur_kwh_batt"):
+            elec_100 = fuel["engine_l_100km"] / be["g_l_kwh"]          # kWh into the battery
+            plug_price = out["prices"]["avg_eur_kwh_batt"]           # € per kWh into the battery
         out["mix"] = drive_mix(total_km, engine_km, (fuel or {}).get("total_cost"), elec_100,
-                               (out.get("prices") or {}).get("avg_eur_kwh"))
+                               plug_price)
     except Exception:
         log.exception("insights: mix")
 
