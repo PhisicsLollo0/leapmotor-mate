@@ -46,6 +46,11 @@
   .ins-band .bars{display:grid;gap:4px;min-width:0}
   .ins-b{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--nx-mute);min-width:0}
   .ins-b i{display:block;height:8px;border-radius:999px;min-width:2px;flex:none}
+  .ins-trips{margin:2px 0 4px;font-size:12px;color:var(--nx-soft)}
+  .ins-trips summary{cursor:pointer;list-style:none}
+  .ins-trips summary::before{content:"▸ "} .ins-trips[open] summary::before{content:"▾ "}
+  .ins-trips a{display:block;padding:2px 0 2px 12px;color:var(--nx-soft);text-decoration:none}
+  .ins-trips a:hover{color:var(--nx-fuel)}
   .ins-b .e{background:var(--nx-ev)} .ins-b .f{background:var(--nx-fuel)} .ins-b .h{background:#FF6B6B}
   .ins-b .stack{display:flex;height:8px;border-radius:999px;overflow:hidden;flex:none}
   .ins-b .stack i{border-radius:0}
@@ -146,19 +151,25 @@
     {% if sp %}
     <div class="ins-card">
       <div class="ins-q">{{ t('ins_speed_q') }}</div>
-      <div class="ins-a">{{ t('ins_speed_a') }}</div>
+      <div class="ins-a">{{ t('ins_speed_a').format(n=sp.minutes) }}</div>
       <div class="ins-keys"><span><i class="ins-ev" style="background:var(--nx-ev)"></i>kWh/100 km {{ t('ins_ev_only') }}</span>
         {% if sp.fuel %}<span><i style="background:var(--nx-fuel)"></i>L/100 km {{ t('ins_with_generator') }}</span>{% endif %}</div>
       <div class="ins-bands">
-        {% for b in sp.elec %}{% set f = sp.fuel[loop.index0] if sp.fuel else none %}
+        {% for b in sp.bands %}
         <div class="ins-band">
           <div class="name">{{ t('ins_band_' ~ b.key) }}<small>{% if b.hi < 999 %}{{ b.lo }}–{{ b.hi }}{% else %}&gt; {{ b.lo }}{% endif %} km/h</small></div>
           <div class="bars">
             <div class="ins-b">{% if b.kwh_100km %}<i class="e" style="width:{{ (b.kwh_100km / sp.max_kwh * 70) | round(1) }}%"></i><em>{{ b.kwh_100km | nice }}</em>
-              {% if b.vs_city_pct is not none %}<span>({{ '%+d' % b.vs_city_pct }}% {{ t('ins_vs_city') }})</span>{% endif %}
+              <span>· {{ b.km | dist(0) }}{% if b.vs_city_pct is not none %} ({{ '%+d' % b.vs_city_pct }}% {{ t('ins_vs_city') }}){% endif %}</span>
               {% else %}<span class="none">{{ t('ins_no_ev_data') if b.km < 1 else t('ins_too_few_km').format(km=b.km | nice) }}</span>{% endif %}</div>
-            {% if f %}<div class="ins-b">{% if f.l_100km %}<i class="f" style="width:{{ (f.l_100km / sp.max_l * 70) | round(1) }}%"></i><em>{{ f.l_100km | nice }}</em>
-              <span>· {{ f.trips }} {{ t('ins_trips') }}</span>{% else %}<span class="none">—</span>{% endif %}</div>{% endif %}
+            {% if sp.fuel %}<div class="ins-b">{% if b.l_100km %}<i class="f" style="width:{{ (b.l_100km / sp.max_l * 70) | round(1) }}%"></i><em>{{ b.l_100km | nice }}</em>
+              <span>· {{ b.gen_km | dist(0) }}{% if b.batt_kwh | abs >= 0.5 %} · {{ (t('ins_band_batt_up') if b.batt_kwh < 0 else t('ins_band_batt_down')).format(kwh=(b.batt_kwh | abs) | nice) }}{% endif %}</span>
+              {% else %}<span class="none">—</span>{% endif %}</div>{% endif %}
+            {# The trips behind the figures, each one a link: a band is only as good as the drives
+               whose stretches landed in it, and the owner should be able to open them and see why. #}
+            {% if b.trips %}<details class="ins-trips"><summary>{{ t('ins_band_which_trips').format(n=b.trips | length) }}</summary>
+              {% for tr in b.trips %}<a href="trips/{{ tr.id }}">{{ tr.started_at | localdate }}{% if tr.ev_km >= 0.5 %} · <span class="ins-ev">{{ tr.ev_km | dist(0) }}{% if tr.kwh_100km %} · {{ tr.kwh_100km | nice }} kWh/100 km{% endif %}</span>{% endif %}{% if tr.gen_km >= 0.5 %} · <span class="ins-fuel">{{ tr.gen_km | dist(0) }}{% if tr.l_100km %} · {{ tr.l_100km | nice }} L/100 km{% endif %}</span>{% endif %}</a>{% endfor %}
+            </details>{% endif %}
           </div>
         </div>
         {% endfor %}

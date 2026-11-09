@@ -10,6 +10,7 @@ keeps, each one a question the owner of a B10 REEV actually asked:
 Kept out of db_reader on purpose: that file is upstream's, and every line added there is a line to
 re-resolve on the next rebase. The pure functions take plain rows and are tested without a database;
 `get_insights` is the only thing that reads one, and only through db_reader's own figures."""
+import bisect
 import logging
 from datetime import datetime
 from typing import Optional
@@ -37,56 +38,124 @@ def _band_of(v: float) -> str:
     return SPEED_BANDS[-1][2]
 
 
-def speed_bands(samples) -> list[dict]:
-    """Electric consumption by speed, from the 10-second trip samples: each pair of consecutive
-    samples of one trip is a segment, its energy is the mean battery power × time and its distance
-    the mean speed × time. Standing still counts in the town band — the energy spent at a red light
-    is town driving's.
+WINDOW_MIN = 5            # a window this long is long enough for the tank gauge to say something
+_WINDOW_FILL = 0.8        # a trip's last window counts if it ran at least this share of WINDOW_MIN
+_GEN_L_PER_MIN = 0.02     # burned faster than this, the generator ran in the window
+_EV_L = 0.01              # burned less than this, the engine was off the whole window
 
-    `samples`: (trip_id, recorded_at, speed_kmh, power_kw) sorted by trip then time. Only feed it
-    trips the generator sat out: with the engine on, the pack's power is net of what the generator
-    pushes in and stops describing the driving."""
-    acc = {key: [0.0, 0.0, 0.0] for _, _, key in SPEED_BANDS}     # km, kWh, hours
-    prev = None
+
+def _level_at(fuel, t: float) -> Optional[float]:
+    """The tank level at t, interpolated in the [(t, litres)] series; None outside it."""
+    i = bisect.bisect_left(fuel, (t,))
+    if i < len(fuel) and fuel[i][0] == t:
+        return fuel[i][1]
+    if i == 0 or i == len(fuel) or fuel[i][0] - fuel[i - 1][0] > _MAX_GAP_S:
+        return None
+    (t0, l0), (t1, l1) = fuel[i - 1], fuel[i]
+    return l0 + (l1 - l0) * (t - t0) / (t1 - t0)
+
+
+def windows(samples, fuel=None, minutes: int = WINDOW_MIN) -> list[dict]:
+    """The trips cut into windows of `minutes`, each one judged as a whole.
+
+    Ten seconds are too few for the tank gauge, which moves in hundredths of a litre, and a whole
+    trip is too many: a drive that is half motorway and half country road lands in one band and the
+    motorway disappears. A window of a few minutes is a stretch of road at one speed with enough
+    fuel burned to measure. Never across two trips or a hole in the samples.
+
+    `samples`: (trip_id, recorded_at, speed_kmh, power_kw) sorted by trip then time; the energy is
+    the battery power × time (positive drawn, negative put back). `fuel`: [(t, litres)] sorted, the
+    tank level over time, or None for a car without a tank."""
+    out, cur, prev = [], None, None
+
+    def close(w):
+        if w and w["s"] >= minutes * 60 * _WINDOW_FILL and w["km"] > 0:
+            litres = None
+            if fuel is not None:
+                l0, l1 = _level_at(fuel, w["t0"]), _level_at(fuel, w["t1"])
+                litres = None if l0 is None or l1 is None else l0 - l1
+            out.append({"trip": w["trip"], "t0": w["t0"], "km": w["km"], "kwh": w["kwh"],
+                        "hours": w["s"] / 3600, "litres": litres, "tank": fuel is not None})
+
     for trip, ts, v, p in samples:
         if v is None or p is None:
-            prev = None
+            close(cur)
+            cur = prev = None
             continue
-        cur = (trip, _ts(ts), float(v), float(p))
-        if prev and prev[0] == trip:
-            dt = cur[1] - prev[1]
-            if 0 < dt <= _MAX_GAP_S:
-                vm, pm, h = (prev[2] + cur[2]) / 2, (prev[3] + cur[3]) / 2, dt / 3600
-                a = acc[_band_of(vm)]
-                a[0] += vm * h
-                a[1] += pm * h
-                a[2] += h
-        prev = cur
-    out = []
-    for lo, hi, key in SPEED_BANDS:
-        km, kwh, h = acc[key]
-        out.append({"key": key, "lo": lo, "hi": hi, "km": round(km, 1), "kwh": round(kwh, 2),
-                    "minutes": round(h * 60),
-                    "kwh_100km": round(kwh / km * 100, 1) if km >= _BAND_MIN_KM and kwh > 0 else None})
+        t, v, p = _ts(ts), float(v), float(p)
+        if cur and prev and prev[0] == trip and 0 < t - prev[1] <= _MAX_GAP_S:
+            dt = t - prev[1]
+            cur["km"] += (v + prev[2]) / 2 * dt / 3600
+            cur["kwh"] += (p + prev[3]) / 2 * dt / 3600
+            cur["s"] += dt
+            cur["t1"] = t
+            if cur["s"] >= minutes * 60:
+                close(cur)
+                cur = None
+        else:
+            close(cur)
+            cur = None
+        if cur is None:
+            cur = {"trip": trip, "t0": t, "t1": t, "s": 0.0, "km": 0.0, "kwh": 0.0}
+        prev = (trip, t, v, p)
+    close(cur)
     return out
 
 
-def fuel_speed_bands(trips) -> list[dict]:
-    """Petrol by speed — per TRIP, not per sample: the fuel counter moves in steps far coarser than
-    ten seconds, so a trip lands in the band of its average speed. `trips`: dicts with km, minutes
-    and l_100km (generator trips only). Weighted by distance, like every L/100 km in Mate."""
-    acc = {key: [0.0, 0.0, 0] for _, _, key in SPEED_BANDS}       # km, litres, trips
-    for t in trips:
-        km, mins, l100 = t.get("km") or 0, t.get("minutes") or 0, t.get("l_100km")
-        if km <= 0 or mins <= 0 or not l100:
+def window_bands(wins, minutes: int = WINDOW_MIN, head_of=None) -> list[dict]:
+    """The windows sorted into speed bands by their own average speed.
+
+    A window that burned petrol is a generator window: its litres over its km give the L/100 km,
+    and the battery it charged or drained meanwhile is stated beside it, never folded in. A window
+    with the engine off is an electric one, wherever its trip ran the generator before or after.
+    A window the engine started in burned real petrol and counts as a generator one; a window with
+    a tank but no level recorded says nothing and is left out, as is a level that barely moved.
+    `head_of` maps a merged piece to the trip it is shown under, so the trip list links the drive."""
+    head_of = head_of or {}
+    acc = {key: {"ev_km": 0.0, "ev_kwh": 0.0, "ev_n": 0, "gen_km": 0.0, "litres": 0.0,
+                 "gen_kwh": 0.0, "gen_n": 0, "trips": {}} for _, _, key in SPEED_BANDS}
+    for w in wins:
+        a = acc[_band_of(w["km"] / w["hours"])]
+        if w["litres"] is not None and w["litres"] >= _GEN_L_PER_MIN * minutes:
+            a["gen_km"] += w["km"]
+            a["litres"] += w["litres"]
+            a["gen_kwh"] += w["kwh"]
+            a["gen_n"] += 1
+            kind = "gen_km"
+        elif (w["litres"] is None and not w.get("tank")) or \
+                (w["litres"] is not None and abs(w["litres"]) < _EV_L):
+            a["ev_km"] += w["km"]
+            a["ev_kwh"] += w["kwh"]
+            a["ev_n"] += 1
+            kind = "ev_km"
+        else:
             continue
-        a = acc[_band_of(km / (mins / 60))]
-        a[0] += km
-        a[1] += l100 * km / 100
-        a[2] += 1
-    return [{"key": key, "km": round(acc[key][0], 1), "trips": acc[key][2],
-             "l_100km": round(acc[key][1] / acc[key][0] * 100, 1) if acc[key][0] >= _BAND_MIN_KM else None}
-            for _, _, key in SPEED_BANDS]
+        trip = a["trips"].setdefault(head_of.get(w["trip"], w["trip"]),
+                                     {"ev_km": 0.0, "gen_km": 0.0, "ev_kwh": 0.0, "litres": 0.0})
+        trip[kind] += w["km"]
+        if kind == "gen_km":
+            trip["litres"] += w["litres"]
+        else:
+            trip["ev_kwh"] += w["kwh"]
+    out = []
+    for lo, hi, key in SPEED_BANDS:
+        a = acc[key]
+        out.append({
+            "key": key, "lo": lo, "hi": hi,
+            "km": round(a["ev_km"], 1), "kwh": round(a["ev_kwh"], 2), "windows": a["ev_n"],
+            "kwh_100km": round(a["ev_kwh"] / a["ev_km"] * 100, 1)
+            if a["ev_km"] >= _BAND_MIN_KM and a["ev_kwh"] > 0 else None,
+            "gen_km": round(a["gen_km"], 1), "litres": round(a["litres"], 2), "gen_windows": a["gen_n"],
+            "batt_kwh": round(a["gen_kwh"], 1),
+            "l_100km": round(a["litres"] / a["gen_km"] * 100, 1) if a["gen_km"] >= _BAND_MIN_KM else None,
+            # each trip's own rate in the band, so the one that drags the band's figure stands out
+            "trips": [{"id": i, "ev_km": round(x["ev_km"], 1), "gen_km": round(x["gen_km"], 1),
+                       "kwh_100km": round(x["ev_kwh"] / x["ev_km"] * 100, 1)
+                       if x["ev_km"] >= 1 and x["ev_kwh"] > 0 else None,
+                       "l_100km": round(x["litres"] / x["gen_km"] * 100, 1) if x["gen_km"] >= 1 else None}
+                      for i, x in a["trips"].items()],
+        })
+    return out
 
 
 def charge_prices(charges, breakeven: Optional[float]) -> dict:
@@ -269,27 +338,31 @@ def get_insights(is_reev: bool, breakeven: Optional[dict], fuel: Optional[dict],
         log.exception("insights: mix")
 
     try:
-        ev_ids = [r["id"] for r in trips if r["id"] not in engine_ids]
-        samples = []
-        if ev_ids:
-            samples = db.execute(
-                f"SELECT trip_id, recorded_at, speed_kmh, power_kw FROM trip_positions "
-                f"WHERE trip_id IN ({','.join('?' * len(ev_ids))}) ORDER BY trip_id, recorded_at",
-                ev_ids).fetchall()
-        bands = speed_bands(samples)
-        fuel_bands = None
-        if is_reev and efftemp and efftemp.get("fuel_points"):
-            dur = {r["id"]: r["duration_min"] for r in trips}
-            fuel_bands = fuel_speed_bands(
-                [{"km": p["km"], "minutes": dur.get(p["id"]), "l_100km": p["l"]}
-                 for p in efftemp["fuel_points"]])
+        # Every trip, the generator ones included: their electric stretches are electric windows.
+        samples = db.execute(
+            "SELECT tp.trip_id, tp.recorded_at, tp.speed_kmh, tp.power_kw FROM trip_positions tp "
+            "JOIN trips t ON t.id = tp.trip_id WHERE t.vehicle_id = COALESCE(?, t.vehicle_id) "
+            "ORDER BY tp.trip_id, tp.recorded_at", (vid,)).fetchall()
+        fuel_series = None
+        if is_reev:
+            fuel_series = [(_ts(r[0]), r[1]) for r in db.execute(
+                "SELECT recorded_at, fuel_liters FROM positions WHERE fuel_liters IS NOT NULL "
+                "AND vehicle_id = COALESCE(?, vehicle_id) ORDER BY recorded_at", (vid,))]
+        heads = {r[0]: r[1] for r in db.execute(
+            "SELECT id, merged_into_id FROM trips WHERE merged_into_id IS NOT NULL")}
+        bands = window_bands(windows(samples, fuel_series), head_of=heads)
+        start = {r["id"]: r["started_at"] for r in trips}
+        for b in bands:
+            for tr in b["trips"]:
+                tr["started_at"] = start.get(tr["id"])
+            b["trips"].sort(key=lambda x: x["started_at"] or "", reverse=True)
         city = next((b["kwh_100km"] for b in bands if b["key"] == "city"), None)
         for b in bands:
             b["vs_city_pct"] = (round((b["kwh_100km"] / city - 1) * 100)
                                 if city and b["kwh_100km"] and b["key"] != "city" else None)
-        out["speed"] = {"elec": bands, "fuel": fuel_bands,
+        out["speed"] = {"bands": bands, "fuel": is_reev, "minutes": WINDOW_MIN,
                         "max_kwh": max([b["kwh_100km"] or 0 for b in bands], default=0) or None,
-                        "max_l": max([b["l_100km"] or 0 for b in fuel_bands or []], default=0) or None}
+                        "max_l": max([b["l_100km"] or 0 for b in bands], default=0) or None}
     except Exception:
         log.exception("insights: speed")
 
